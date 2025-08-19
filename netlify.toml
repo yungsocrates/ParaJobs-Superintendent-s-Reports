@@ -1,0 +1,18 @@
+[build]
+  # The directory where the pre-built static files are located
+  publish = "nycdoe_reports"
+  
+  # No build command needed - we're deploying pre-built static files
+  # command = ""
+
+[[redirects]]
+  # Redirect root to the main dashboard
+  from = "/"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  # Handle SPA-style routing - catch all routes and serve index.html
+  from = "/*"
+  to = "/index.html"
+  status = 200
