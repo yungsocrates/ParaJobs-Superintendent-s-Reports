@@ -37,12 +37,12 @@ def prepare_district_data(district_summary):
     # Create a copy to avoid modifying original data
     map_data = district_summary.copy()
     
-    # Ensure District column is integer for matching with GeoJSON
-    map_data['District'] = map_data['District'].astype(int)
+    # Ensure District column is integer for matching with GeoJSON - handle float strings
+    map_data['District'] = map_data['District'].apply(lambda x: int(float(x)) if pd.notna(x) and str(x) != 'Unknown' else x)
     
     # Create a text column for hover information
     map_data['hover_text'] = map_data.apply(lambda row: 
-        f"District {int(row['District'])}<br>" +
+        f"District {row['District'] if str(row['District']) == 'Unknown' else int(row['District'])}<br>" +
         f"Overall Fill Rate: {row['Overall_Fill_Pct']:.1f}%<br>" +
         f"Total Jobs: {int(row['Total']):,}<br>" +
         f"Filled: {int(row['Total_Filled']):,}<br>" +
@@ -78,9 +78,9 @@ def create_district_choropleth(district_summary, output_file):
         geojson=geojson_data,
         locations=map_data['District'],
         z=map_data['Overall_Fill_Pct'],
-        colorscale=[[0, 'red'], [0.5, 'yellow'], [1, 'green']],  # Red at 60%, Green at 100%
-        zmin=60,  # Set minimum color scale to 60%
-        zmax=100, # Set maximum color scale to 100%
+    colorscale=[[0, 'red'], [0.15, 'yellow'], [1, 'green']],  # Red at 70%, Green at 100%
+    zmin=75,  # Set minimum color scale to 70%
+        zmax=90, # Set maximum color scale to 100%
         marker_line_width=1,
         marker_line_color='black',
         featureidkey="properties.SchoolDist",
@@ -218,7 +218,7 @@ def get_district_map_section_html(district_summary, map_file_path):
                 </div>
                 <div class="stat-card">
                     <h4>Highest Fill Rate District</h4>
-                    <div class="stat-value">D{int(stats['best_district'])} ({stats['highest_fill_rate']:.1f}%)</div>
+                    <div class="stat-value">D{stats['best_district'] if str(stats['best_district']) == 'Unknown' else int(float(stats['best_district']))} ({stats['highest_fill_rate']:.1f}%)</div>
                 </div>
                 <div class="stat-card">
                     <h4>Districts ≥90%</h4>

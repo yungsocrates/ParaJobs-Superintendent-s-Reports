@@ -1,0 +1,28 @@
+# Ignore all CSV data files (fill rate data)
+*.csv
+
+# Ignore common names for fill rate data folders (case-insensitive on most systems)
+fillrate/
+fill_rate/
+FillRate/
+
+# Ignore the architecture TeX document (local editing artifacts)
+NYC_DOE_ParaJobs_Architecture.tex
+
+# TeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# backups and editor temp files
+*~
+.DS_Store
+.vscode/
+
+# If you want to track CSVs or the tex file later, remove the corresponding lines above

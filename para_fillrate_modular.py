@@ -14,7 +14,8 @@ from data_processing import (
     load_and_process_data, get_data_date_range, create_summary_stats, 
     copy_logo_to_output, create_matching_analysis, load_superintendent_mapping, add_superintendent_info
 )
-from report_generators import create_district_report, create_borough_report, create_overall_summary, create_superintendent_report
+from report_generators import create_borough_report, create_overall_summary, create_superintendent_report
+
 def main():
     """
     Main function to generate static reports

@@ -769,16 +769,8 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
     if school_stats is not None and not school_stats.empty:
         superintendent_school_data = school_stats[school_stats['Superintendent_Name'] == superintendent]
         if not superintendent_school_data.empty:
-            summary_by_school_html = create_school_tabbed_tables(
-                superintendent_school_data.rename(columns={'Location': 'School'}), 
-                formatters
-            )
-            
-            # Create school links with actual reports (prevent duplicates)
-            unique_schools = superintendent_school_data['Location'].unique()  # Get unique schools only
-            
-            # School aggregation for links - aggregate all data for each school
-            school_aggregated = superintendent_school_data.groupby(['Location']).agg({
+            # FIRST aggregate the school data by Location to prevent duplicates
+            school_aggregated_for_display = superintendent_school_data.groupby(['Location']).agg({
                 'Vacancy_Filled': 'sum',
                 'Vacancy_Unfilled': 'sum', 
                 'Total_Vacancy': 'sum',
@@ -787,6 +779,39 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
                 'Total_Absence': 'sum',
                 'Total': 'sum'
             }).reset_index()
+            
+            # Calculate fill rates for the aggregated data
+            school_aggregated_for_display['Vacancy_Fill_Pct'] = (
+                school_aggregated_for_display['Vacancy_Filled'] / 
+                school_aggregated_for_display['Total_Vacancy'].replace(0, 1) * 100
+            ).round(1)
+            school_aggregated_for_display['Absence_Fill_Pct'] = (
+                school_aggregated_for_display['Absence_Filled'] / 
+                school_aggregated_for_display['Total_Absence'].replace(0, 1) * 100
+            ).round(1)
+            school_aggregated_for_display['Total_Filled'] = (
+                school_aggregated_for_display['Vacancy_Filled'] + 
+                school_aggregated_for_display['Absence_Filled']
+            )
+            school_aggregated_for_display['Total_Unfilled'] = (
+                school_aggregated_for_display['Vacancy_Unfilled'] + 
+                school_aggregated_for_display['Absence_Unfilled']
+            )
+            school_aggregated_for_display['Overall_Fill_Pct'] = (
+                school_aggregated_for_display['Total_Filled'] / 
+                school_aggregated_for_display['Total'].replace(0, 1) * 100
+            ).round(1)
+            
+            summary_by_school_html = create_school_tabbed_tables(
+                school_aggregated_for_display.rename(columns={'Location': 'School'}), 
+                formatters
+            )
+            
+            # Create school links with actual reports (prevent duplicates)
+            unique_schools = school_aggregated_for_display['Location'].unique()  # Get unique schools only
+            
+            # Use the same aggregated data for links
+            school_aggregated = school_aggregated_for_display.copy()
             # Don't rename 'Total' to 'Total_Jobs' here since school reports expect 'Total'
             
             # Generate school reports and track successful ones
