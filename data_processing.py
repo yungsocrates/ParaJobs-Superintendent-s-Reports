@@ -35,7 +35,8 @@ def load_superintendent_mapping():
         'Borough': df['Boro'],
         'Location': df['DBN'].str[2:],  # Strip first 2 characters to get location code
         'Superintendent': df['Superintendent'],
-        'School_Name': df['School Name']
+        'School_Name': df['School Name'],
+        'Principal Name': df['Principal Name']
     })
     
     # Replace district 75 with 97 as requested
@@ -68,7 +69,7 @@ def create_school_mapping_dict(mapping_df):
     
     Returns:
         dict: Dictionary with location codes as keys and school info as values
-              Format: {location: {'district': xx, 'borough': x, 'superintendent': 'Name', 'dbn': 'xxXxxx'}}
+              Format: {location: {'district': xx, 'borough': x, 'superintendent': 'Name', 'dbn': 'xxXxxx', 'principal': 'Name'}}
     """
     school_dict = {}
     
@@ -79,7 +80,8 @@ def create_school_mapping_dict(mapping_df):
             'borough': row['Borough'], 
             'superintendent': row['Superintendent'],
             'dbn': row['DBN'],
-            'school_name': row['School_Name']
+            'school_name': row['School_Name'],
+            'principal': row.get('Principal Name', 'Principal information not available')
         }
     
     return school_dict
@@ -306,11 +308,16 @@ def add_superintendent_info(df, mapping_df=None):
     df['Borough_From_Mapping'] = df['Location'].map(lambda x: school_info.get(x, {}).get('borough', 'Unknown'))
     df['DBN'] = df['Location'].map(lambda x: school_info.get(x, {}).get('dbn', 'Unknown'))
     df['School_Name_Full'] = df['Location'].map(lambda x: school_info.get(x, {}).get('school_name', 'Unknown'))
+    df['Principal_Name'] = df['Location'].map(lambda x: school_info.get(x, {}).get('principal', 'Principal information not available'))
     
     # Report mapping success
     mapped_count = (df['Superintendent_Name'] != 'Unknown').sum()
     total_count = len(df)
     print(f"✓ Successfully mapped {mapped_count}/{total_count} records to superintendents ({mapped_count/total_count*100:.1f}%)")
+    
+    # Report principal mapping success
+    principal_mapped_count = (df['Principal_Name'] != 'Principal information not available').sum()
+    print(f"✓ Successfully mapped {principal_mapped_count}/{total_count} records to principals ({principal_mapped_count/total_count*100:.1f}%)")
     
     # Show summary by superintendent
     if mapped_count > 0:
@@ -797,3 +804,22 @@ def get_totals_from_data(data):
         'Vacancy_Filled': int(data['Vacancy_Filled'].sum()),
         'Absence_Filled': int(data['Absence_Filled'].sum())
     }
+
+# Formatting functions for display
+def format_pct(value):
+    """Format a number as a percentage"""
+    if pd.isna(value) or value is None:
+        return "N/A"
+    try:
+        return f"{float(value):.1f}%"
+    except (ValueError, TypeError):
+        return str(value)
+
+def format_int(value):
+    """Format a number as an integer with commas"""
+    if pd.isna(value) or value is None:
+        return "N/A"
+    try:
+        return f"{int(float(value)):,}"
+    except (ValueError, TypeError):
+        return str(value)

@@ -1,5 +1,6 @@
 # Ignore all CSV data files (fill rate data)
 *.csv
+*.xlsx
 
 # Ignore common names for fill rate data folders (case-insensitive on most systems)
 fillrate/

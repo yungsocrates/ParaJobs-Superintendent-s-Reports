@@ -261,6 +261,13 @@ def get_base_css():
                 margin: 25px 0;
             }
 
+            .comparison-grid-two {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 20px;
+                margin: 25px 0;
+            }
+
             .comparison-grid-four .comparison-card {
                 padding: 20px;
                 border-radius: 12px;
@@ -315,6 +322,28 @@ def get_base_css():
 
             .comparison-card li:last-child {
                 border-bottom: none;
+            }
+
+            /* Highlighted metrics - key performance indicators */
+            .comparison-card li.highlight-metric {
+                color: #1a365d;
+                font-weight: 600;
+                font-size: 1.15em;
+            }
+
+            .comparison-card li.highlight-metric strong {
+                color: #2c5aa0;
+            }
+
+            /* Secondary metrics - supporting information with lighter styling */
+            .comparison-card li.secondary-metric {
+                color: #666666;
+                font-size: 1.0em;
+            }
+
+            .comparison-card li.secondary-metric strong {
+                color: #888888;
+                font-weight: 500;
             }
 
             .links-grid {
@@ -561,6 +590,10 @@ def get_base_css():
                 }
 
                 .comparison-grid-four {
+                    grid-template-columns: 1fr;
+                }
+
+                .comparison-grid-two {
                     grid-template-columns: 1fr;
                 }
 
@@ -960,7 +993,6 @@ def generate_clean_table_html(df, formatters=None):
     Generate clean HTML table with consistent structure for DataTables
     Preserves existing formatting and links from the DataFrame
     """
-    import pandas as pd
     
     if df.empty:
         return '<p><em>No data available.</em></p>'
@@ -1070,9 +1102,33 @@ def get_comparison_card_html(title, stats, card_class=""):
         stats: Dictionary of statistics to display
         card_class: CSS class for styling
     """
-    stats_html = ""
+    # Define which metrics should be highlighted (prominent)
+    highlight_metrics = {
+        "Total SubCentral Jobs",
+        "SubCentral Fill Rate", 
+        "% Payroll Jobs Also in SubCentral"
+    }
+    
+    # Separate highlighted and secondary metrics
+    highlighted_items = []
+    secondary_items = []
+    
     for label, value in stats.items():
-        stats_html += f'<li><strong>{label}:</strong> {value}</li>'
+        if label in highlight_metrics:
+            highlighted_items.append((label, value))
+        else:
+            secondary_items.append((label, value))
+    
+    # Build stats HTML with highlighted metrics first
+    stats_html = ""
+    
+    # Add highlighted metrics first
+    for label, value in highlighted_items:
+        stats_html += f'<li class="highlight-metric"><strong>{label}:</strong> {value}</li>'
+    
+    # Add secondary metrics below
+    for label, value in secondary_items:
+        stats_html += f'<li class="secondary-metric"><strong>{label}:</strong> {value}</li>'
     
     return f"""
     <div class="comparison-card {card_class}">
@@ -1091,7 +1147,6 @@ def create_classification_tabbed_tables(data, formatters, debug_district=False):
                      Total_Filled, Total_Unfilled, Total, Overall_Fill_Pct
     """
     from data_processing import format_pct, format_int
-    import pandas as pd
     
     if data is None or data.empty:
         return """
@@ -1144,8 +1199,8 @@ def create_classification_tabbed_tables(data, formatters, debug_district=False):
     combined_df['Classification'] = df_copy['Classification']
     combined_df['Total Filled'] = df_copy['Total_Filled'].apply(formatters.get('Total_Filled', format_int))
     combined_df['Total Unfilled'] = df_copy['Total_Unfilled'].apply(formatters.get('Total_Unfilled', format_int))
-    combined_df['Total'] = df_copy['Total'].apply(formatters.get('Total', format_int))
-    combined_df['Overall Fill %'] = df_copy['Overall_Fill_Pct'].apply(formatters.get('Overall_Fill_Pct', format_pct))
+    combined_df['Total Jobs'] = df_copy['Total'].apply(formatters.get('Total', format_int))
+    combined_df['Fill Rate %'] = df_copy['Overall_Fill_Pct'].apply(formatters.get('Overall_Fill_Pct', format_pct))
     
     # Build Details DataFrame - exactly like your working example
     details_df = pd.DataFrame()
@@ -1193,7 +1248,6 @@ def create_district_tabbed_tables(data, formatters):
                      Total_Filled, Total_Unfilled, Total, Overall_Fill_Pct
     """
     from data_processing import format_pct, format_int
-    import pandas as pd
     
     if data is None or data.empty:
         return """
@@ -1218,16 +1272,16 @@ def create_district_tabbed_tables(data, formatters):
     # Create a copy to avoid modifying the original
     df_copy = data.copy()
     
-    # Sort by Overall Fill Rate (lowest to highest) for administrative reports
-    df_copy = df_copy.sort_values('Overall_Fill_Pct', ascending=True)
+    # Sort by Fill Rate (lowest to highest) for administrative reports
+    df_copy = df_copy.sort_values('Fill Rate %', ascending=True)
     
     # Build Combined Totals DataFrame - exactly like your working example
     combined_df = pd.DataFrame()
     combined_df['District'] = df_copy['District']
     combined_df['Total Filled'] = df_copy['Total_Filled'].apply(format_int)
     combined_df['Total Unfilled'] = df_copy['Total_Unfilled'].apply(format_int)
-    combined_df['Total'] = df_copy['Total'].apply(format_int)
-    combined_df['Overall Fill %'] = df_copy['Overall_Fill_Pct'].apply(format_pct)
+    combined_df['Total Jobs'] = df_copy['Total Jobs'].apply(format_int)
+    combined_df['Fill Rate %'] = df_copy['Fill Rate %'].apply(format_pct)
     
     # Build Details DataFrame - exactly like your working example
     details_df = pd.DataFrame()
@@ -1270,7 +1324,6 @@ def create_borough_tabbed_tables(data, formatters):
                      Total_Filled, Total_Unfilled, Total, Overall_Fill_Pct
     """
     from data_processing import format_pct, format_int
-    import pandas as pd
     
     if data is None or data.empty:
         return """
@@ -1295,16 +1348,16 @@ def create_borough_tabbed_tables(data, formatters):
     # Create a copy to avoid modifying the original
     df_copy = data.copy()
     
-    # Sort by Overall Fill % from lowest to highest
-    df_copy = df_copy.sort_values('Overall_Fill_Pct', ascending=True)
+    # Sort by Fill Rate % from lowest to highest
+    df_copy = df_copy.sort_values('Fill Rate %', ascending=True)
     
     # Build Combined Totals DataFrame - exactly like your working example
     combined_df = pd.DataFrame()
     combined_df['Borough'] = df_copy['Borough']
     combined_df['Total Filled'] = df_copy['Total_Filled'].apply(format_int)
     combined_df['Total Unfilled'] = df_copy['Total_Unfilled'].apply(format_int)
-    combined_df['Total'] = df_copy['Total'].apply(format_int)
-    combined_df['Overall Fill %'] = df_copy['Overall_Fill_Pct'].apply(format_pct)
+    combined_df['Total Jobs'] = df_copy['Total Jobs'].apply(format_int)
+    combined_df['Fill Rate %'] = df_copy['Fill Rate %'].apply(format_pct)
     
     # Build Details DataFrame - exactly like your working example
     details_df = pd.DataFrame()
@@ -1347,7 +1400,6 @@ def create_school_tabbed_tables(data, formatters):
                      Total_Filled, Total_Unfilled, Total, Overall_Fill_Pct
     """
     from data_processing import format_pct, format_int
-    import pandas as pd
     
     if data is None or data.empty:
         return """
@@ -1372,16 +1424,16 @@ def create_school_tabbed_tables(data, formatters):
     # Create a copy to avoid modifying the original
     df_copy = data.copy()
     
-    # Sort by Overall Fill Rate (lowest to highest) for administrative reports
-    df_copy = df_copy.sort_values('Overall_Fill_Pct', ascending=True)
+    # Sort by Fill Rate (lowest to highest) for administrative reports
+    df_copy = df_copy.sort_values('Fill Rate %', ascending=True)
     
     # Build Combined Totals DataFrame - exactly like your working example
     combined_df = pd.DataFrame()
     combined_df['School'] = df_copy['School']
     combined_df['Total Filled'] = df_copy['Total_Filled'].apply(format_int)
     combined_df['Total Unfilled'] = df_copy['Total_Unfilled'].apply(format_int)
-    combined_df['Total'] = df_copy['Total'].apply(format_int)
-    combined_df['Overall Fill %'] = df_copy['Overall_Fill_Pct'].apply(format_pct)
+    combined_df['Total Jobs'] = df_copy['Total Jobs'].apply(format_int)
+    combined_df['Fill Rate %'] = df_copy['Fill Rate %'].apply(format_pct)
     
     # Build Details DataFrame - exactly like your working example
     details_df = pd.DataFrame()
@@ -1466,9 +1518,8 @@ def create_simple_table_with_tabbed_styling(df, formatters):
     
     return final_html
 
-def create_conditional_formatted_table(df, formatters, match_col='Match Percentage'):
+def create_conditional_formatted_table(df, formatters, match_col='Match Percentage', table_id='payroll-analysis-table'):
     """Create a simple table with conditional formatting for match percentages"""
-    import pandas as pd
     
     # Validate inputs
     if df is None or df.empty:
@@ -1498,9 +1549,10 @@ def create_conditional_formatted_table(df, formatters, match_col='Match Percenta
     header_cells = []
     for col in df_copy.columns:
         header_cells.append(f'<th>{col}</th>')
-    html_rows.append(f'<tr>{"".join(header_cells)}</tr>')
+    header_html = f'<thead><tr>{"".join(header_cells)}</tr></thead>'
     
     # Data rows with conditional formatting
+    data_rows = []
     for _, row in df_copy.iterrows():
         cells = []
         for col in df_copy.columns:
@@ -1522,12 +1574,38 @@ def create_conditional_formatted_table(df, formatters, match_col='Match Percenta
                     pass
             
             cells.append(f'<td{cell_class}>{cell_value}</td>')
-        html_rows.append(f'<tr>{"".join(cells)}</tr>')
+        data_rows.append(f'<tr>{"".join(cells)}</tr>')
+    
+    tbody_html = f'<tbody>{"".join(data_rows)}</tbody>'
+    
+    # Find the index of the match column for default sorting
+    try:
+        match_col_index = list(df_copy.columns).index(match_col)
+    except ValueError:
+        # If match column not found, default to first column
+        match_col_index = 0
     
     table_html = f"""
-    <table class="table table-striped">
-        {"".join(html_rows)}
+    <table class="table table-striped sortable-table" id="{table_id}">
+        {header_html}
+        {tbody_html}
     </table>
+    
+    <script>
+    $(document).ready(function() {{
+        $('#{table_id}').DataTable({{
+            "paging": false,
+            "searching": true,
+            "ordering": true,
+            "info": false,
+            "autoWidth": false,
+            "order": [[ {match_col_index}, "asc" ]],
+            "columnDefs": [
+                {{ "orderable": true, "targets": "_all" }}
+            ]
+        }});
+    }});
+    </script>
     """
     
     return f"""

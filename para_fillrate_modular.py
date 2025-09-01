@@ -6,6 +6,7 @@ The heavy lifting is now done by imported modules for better maintainability.
 """
 
 import os
+import sys
 import time
 import pandas as pd
 
@@ -34,7 +35,6 @@ def main():
     output_directory = 'nycdoe_reports'
     
     # Check for force regeneration flag
-    import sys
     force_regenerate = '--force' in sys.argv or '-f' in sys.argv
     if force_regenerate:
         print("🔄 Force regeneration mode: will overwrite existing reports")

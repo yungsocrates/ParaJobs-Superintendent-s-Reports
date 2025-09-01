@@ -5,6 +5,7 @@ Chart generation utilities for NYC DOE Reports
 import plotly.graph_objects as go
 import plotly.io as pio
 import plotly.offline as pyo
+import pandas as pd
 import os
 import re
 
@@ -13,6 +14,76 @@ def clean_classification_for_display(classification):
     Clean classification names for display in bar charts
     """
     return classification.replace(' SPEAKING PARA', '')
+
+def create_vacancy_absence_chart(data, title, output_file, div_id=None):
+    """
+    Create a grouped bar chart showing filled vs unfilled for vacancies and absences
+    
+    Args:
+        data: DataFrame with job data  
+        title: Chart title
+        output_file: Path to save the chart HTML
+        div_id: HTML div ID for the chart
+    """
+    
+    # Aggregate data to get totals for vacancy and absence
+    if isinstance(data, pd.Series):
+        # Convert Series to DataFrame
+        data = data.to_frame().T
+    
+    # Calculate totals across all classifications
+    vacancy_filled = data['Vacancy_Filled'].sum()
+    vacancy_unfilled = data['Vacancy_Unfilled'].sum()
+    absence_filled = data['Absence_Filled'].sum()
+    absence_unfilled = data['Absence_Unfilled'].sum()
+    
+    fig = go.Figure()
+    
+    # Add bars for filled jobs
+    fig.add_trace(go.Bar(
+        name='Filled',
+        x=['Vacancy', 'Absence'],
+        y=[vacancy_filled, absence_filled],
+        marker_color='darkgreen',
+        text=[f"{int(vacancy_filled):,}", f"{int(absence_filled):,}"],
+        textposition='auto'
+    ))
+    
+    # Add bars for unfilled jobs
+    fig.add_trace(go.Bar(
+        name='Unfilled',
+        x=['Vacancy', 'Absence'],
+        y=[vacancy_unfilled, absence_unfilled],
+        marker_color='lightcoral',
+        text=[f"{int(vacancy_unfilled):,}", f"{int(absence_unfilled):,}"],
+        textposition='auto'
+    ))
+    
+    fig.update_layout(
+        title=title,
+        xaxis_title='Job Type',
+        yaxis_title='Number of Jobs',
+        barmode='group',
+        height=500,
+        width=800,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
+    )
+    
+    # Ensure the directory exists
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    
+    # Generate HTML and write to file
+    html_str = pio.to_html(fig, include_plotlyjs=True, div_id=div_id)
+    with open(output_file, 'w', encoding='utf-8') as f:
+        f.write(html_str)
+    
+    return output_file
 
 def create_bar_chart(data, title, output_file, div_id=None):
     """

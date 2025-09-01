@@ -4,6 +4,7 @@ Report generation functions for NYC DOE Reports
 
 import os
 import re
+import pandas as pd
 import numpy as np
 from templates import (
     get_html_template, get_header_html, get_professional_footer,
@@ -12,7 +13,7 @@ from templates import (
     create_conditional_formatted_table
 )
 from chart_utils import (
-    create_bar_chart, create_pie_charts_for_data, create_overall_bar_chart
+    create_bar_chart, create_pie_charts_for_data, create_overall_bar_chart, create_vacancy_absence_chart
 )
 from data_processing import (
     format_pct, format_int, create_summary_stats, calculate_fill_rates, get_totals_from_data, copy_logo_to_output
@@ -48,8 +49,6 @@ def create_superintendent_school_report(superintendent, location, location_clean
     """
     Create a comprehensive report for a single school under a superintendent
     """
-    import pandas as pd
-    import numpy as np
     
     # Create subfolder for school directly under the superintendent directory
     school_dir = os.path.join(superintendent_dir, "Schools", f"School_{location_clean}")
@@ -124,9 +123,9 @@ def create_superintendent_school_report(superintendent, location, location_clean
     
     # Create bar chart with sorted data (highest to lowest total jobs)
     bar_chart_file = os.path.join(school_dir, f'{safe_location_name}_bar_chart.html')
-    create_bar_chart(
+    create_vacancy_absence_chart(
         school_classification_data,  # Use sorted classification data instead of raw school_data
-        f'Jobs by Classification and Type - {location}',
+        f'SubCentral Vacancy vs Absence Analysis - {location}',
         bar_chart_file,
         f"{safe_location_name}_bar_chart"
     )
@@ -137,6 +136,18 @@ def create_superintendent_school_report(superintendent, location, location_clean
     # Get comparison data
     school_borough = df[df['Location'] == location]['Borough'].iloc[0]
     school_superintendent = df[df['Location'] == location]['Superintendent_Name'].iloc[0]
+    
+    # Get principal name from the data 
+    principal_name = "Principal information not available"
+    try:
+        # Use the mapped Principal_Name column
+        if 'Principal_Name' in df.columns:
+            principal_match = df[df['Location'] == location]['Principal_Name']
+            if not principal_match.empty and pd.notna(principal_match.iloc[0]):
+                principal_name = principal_match.iloc[0]
+    except Exception as e:
+        print(f"Warning: Could not retrieve principal name for {location}: {e}")
+    
     safe_superintendent_name = school_superintendent.replace(',', '').replace(' ', '_').replace('.', '').replace("'", "")
     overall_totals = summary_stats.agg({
         'Vacancy_Filled': 'sum', 'Vacancy_Unfilled': 'sum', 'Absence_Filled': 'sum',
@@ -189,90 +200,78 @@ def create_superintendent_school_report(superintendent, location, location_clean
     # Create comparison cards
     comparison_cards = []
     
-    # Citywide card
-    citywide_stats = {
-        "Total Jobs": f"{overall_stats['Total']:,}",
-        "Total Vacancies": f"{overall_stats['Total_Vacancy']:,} ({(overall_stats['Total_Vacancy'] / overall_stats['Total'] * 100) if overall_stats['Total'] > 0 else 0:.1f}%)",
-        "Total Absences": f"{overall_stats['Total_Absence']:,} ({(overall_stats['Total_Absence'] / overall_stats['Total'] * 100) if overall_stats['Total'] > 0 else 0:.1f}%)",
-        "Overall Fill Rate": f"{citywide_rates[0]:.1f}%",
-        "Vacancy Fill Rate": f"{citywide_rates[1]:.1f}%",
-        "Absence Fill Rate": f"{citywide_rates[2]:.1f}%",
-        "Average Match %": f"{citywide_match_pct:.1f}%" if citywide_match_pct > 0 else "N/A",
-        "Number of Schools": f"{len(df['Location'].unique())}"
-    }
-    comparison_cards.append(get_comparison_card_html("Citywide Statistics", citywide_stats, "citywide"))
-    
-    # Borough card
-    borough_stats = {
-        "Total Jobs": f"{borough_totals['Total']:,}",
-        "Total Vacancies": f"{borough_totals['Total_Vacancy']:,} ({(borough_totals['Total_Vacancy'] / borough_totals['Total'] * 100) if borough_totals['Total'] > 0 else 0:.1f}%)",
-        "Total Absences": f"{borough_totals['Total_Absence']:,} ({(borough_totals['Total_Absence'] / borough_totals['Total'] * 100) if borough_totals['Total'] > 0 else 0:.1f}%)",
-        "Overall Fill Rate": f"{borough_rates[0]:.1f}%",
-        "Vacancy Fill Rate": f"{borough_rates[1]:.1f}%",
-        "Absence Fill Rate": f"{borough_rates[2]:.1f}%",
-        "Average Match %": f"{borough_match_pct:.1f}%" if borough_match_pct > 0 else "N/A",
-        "Number of Schools": f"{len(df[df['Borough'] == school_borough]['Location'].unique())}"
-    }
-    comparison_cards.append(get_comparison_card_html(f"{school_borough} Statistics", borough_stats, "borough"))
-    
     # Superintendent card
     superintendent_stats = {
-        "Total Jobs": f"{superintendent_totals['Total']:,}",
-        "Total Vacancies": f"{superintendent_totals['Total_Vacancy']:,} ({(superintendent_totals['Total_Vacancy'] / superintendent_totals['Total'] * 100) if superintendent_totals['Total'] > 0 else 0:.1f}%)",
-        "Total Absences": f"{superintendent_totals['Total_Absence']:,} ({(superintendent_totals['Total_Absence'] / superintendent_totals['Total'] * 100) if superintendent_totals['Total'] > 0 else 0:.1f}%)",
-        "Overall Fill Rate": f"{superintendent_rates[0]:.1f}%",
+        "Total SubCentral Jobs": f"{superintendent_totals['Total']:,}",
+        "Vacancies": f"{superintendent_totals['Total_Vacancy']:,} ({(superintendent_totals['Total_Vacancy'] / superintendent_totals['Total'] * 100) if superintendent_totals['Total'] > 0 else 0:.1f}%)",
+        "Absences": f"{superintendent_totals['Total_Absence']:,} ({(superintendent_totals['Total_Absence'] / superintendent_totals['Total'] * 100) if superintendent_totals['Total'] > 0 else 0:.1f}%)",
+        "SubCentral Fill Rate": f"{superintendent_rates[0]:.1f}%",
         "Vacancy Fill Rate": f"{superintendent_rates[1]:.1f}%",
         "Absence Fill Rate": f"{superintendent_rates[2]:.1f}%",
-        "Average Match %": f"{district_match_pct:.1f}%" if district_match_pct > 0 else "N/A",
+        "% Payroll Jobs Also in SubCentral": f"{district_match_pct:.1f}%" if district_match_pct > 0 else "N/A",
         "Number of Schools": f"{len(df[df['Superintendent_Name'] == school_superintendent]['Location'].unique())}"
     }
     comparison_cards.append(get_comparison_card_html(f"Superintendent {school_superintendent}", superintendent_stats, "superintendent"))
     
-    # School card
+    # Get school-level match percentage
+    school_match_pct = 0
+    if matching_stats is not None and not matching_stats.empty:
+        # Find match percentage column
+        match_col = None
+        for col in matching_stats.columns:
+            if 'Match' in col and ('Percentage' in col or '%' in col):
+                match_col = col
+                break
+        
+        if match_col:
+            # Get this school's match percentage
+            school_matching = matching_stats[matching_stats['Location'] == location]
+            if not school_matching.empty and match_col in school_matching.columns:
+                school_match_pct = school_matching[match_col].iloc[0] if pd.notna(school_matching[match_col].iloc[0]) else 0
+    
+    # School card (without Classifications, with payroll percentage)
     school_stats = {
-        "Total Jobs": f"{school_totals['Total']:,}",
-        "Total Vacancies": f"{school_totals['Total_Vacancy']:,} ({(school_totals['Total_Vacancy'] / school_totals['Total'] * 100) if school_totals['Total'] > 0 else 0:.1f}%)",
-        "Total Absences": f"{school_totals['Total_Absence']:,} ({(school_totals['Total_Absence'] / school_totals['Total'] * 100) if school_totals['Total'] > 0 else 0:.1f}%)",
-        "Overall Fill Rate": f"{school_rates[0]:.1f}%",
+        "Total SubCentral Jobs": f"{school_totals['Total']:,}",
+        "Vacancies": f"{school_totals['Total_Vacancy']:,} ({(school_totals['Total_Vacancy'] / school_totals['Total'] * 100) if school_totals['Total'] > 0 else 0:.1f}%)",
+        "Absences": f"{school_totals['Total_Absence']:,} ({(school_totals['Total_Absence'] / school_totals['Total'] * 100) if school_totals['Total'] > 0 else 0:.1f}%)",
+        "SubCentral Fill Rate": f"{school_rates[0]:.1f}%",
         "Vacancy Fill Rate": f"{school_rates[1]:.1f}%",
         "Absence Fill Rate": f"{school_rates[2]:.1f}%",
-        "Classifications": ", ".join(school_data['Classification'].unique())
+        "% Payroll Jobs Also in SubCentral": f"{school_match_pct:.1f}%" if school_match_pct > 0 else "N/A"
     }
     comparison_cards.append(get_comparison_card_html(f"This School ({location})", school_stats, "school"))
     
-    comparison_html = f'<div class="comparison-grid-four">{"".join(comparison_cards)}</div>'
+    comparison_html = f'<div class="comparison-grid-two">{"".join(comparison_cards)}</div>'
     
     # Build content with new structure
     content = f"""
         {get_header_html("../../../Horizontal_logo_White_PublicSchools.png", 
                         "Substitute Paraprofessional Jobs Report", 
-                        f"School: {location} (Superintendent: {school_superintendent})", 
+                        f"School: {location}<br>Principal: {principal_name}<br>Superintendent: {school_superintendent}", 
                         date_range_info)}
         
         <div class="content">
             {get_navigation_html([
-                (f"../../{safe_superintendent_name}_report.html", f"← Back to Superintendent {school_superintendent}")
+                (f"../../{safe_superintendent_name}_report.html", f"← Back to Schools Managed by Superintendent")
             ])}
             
             <div class="section">
                 <h3>Comparison Statistics</h3>
-                <p><em>This comparison shows how this school performs relative to schools under the same
-                stuperintendent, the borough, and citywide averages.</em></p>
+                <p><em>This comparison shows how this school performs relative to schools under the same superintendent.</em></p>
                 {comparison_html}
             </div>
             
             <div class="section">
-                <h3>Fill Rate Analysis by Classification</h3>
-                <p><em><strong>Note:</strong> This data is based on SubCentral data only. Use the tabs below to switch
-                between different views of the classification data. Data is sorted from highest to lowest number of
-                total jobs.</em></p>
+                <h3>SubCentral Fill Rate Analysis by Classification</h3>
+                <p><em><strong>Note:</strong> To address staffing gaps and prioritize recruitment of bilingual paraprofessionals in languages that are high-need for your schools, classifications are sorted by the highest total number of jobs.</em></p>
                 {table_html}
+                <p><em>For more in-depth job analysis of vacancies and absences by classification you can click on the "Vacancy and Absence Details" tab</em></p>
             </div>
 
             <div class="section">
-                <h3>Jobs by Classification and Type</h3>
+                <h3>SubCentral Vacancy vs Absence Analysis</h3>
                 <div class="chart-container">
-                    <iframe src="{safe_location_name}_bar_chart.html" width="1220" height="520" frameborder="0"></iframe>
+                    <iframe src="{safe_location_name}_bar_chart.html" width="850" height="520" frameborder="0"></iframe>
                 </div>
             </div>
 
@@ -366,11 +365,11 @@ def create_district_report(district, district_data, df, output_dir, summary_stat
     
     # Citywide card with match percentage
     citywide_stats = {
-        "Total Jobs": f"{overall_stats['Total']:,}",
-        "Overall Fill Rate": f"{citywide_rates[0]:.1f}%",
+        "Total SubCentral Jobs": f"{overall_stats['Total']:,}",
+        "SubCentral Fill Rate": f"{citywide_rates[0]:.1f}%",
         "Vacancy Fill Rate": f"{citywide_rates[1]:.1f}%", 
         "Absence Fill Rate": f"{citywide_rates[2]:.1f}%",
-        "Average Match %": f"{citywide_match_pct:.1f}%" if matching_stats is not None and not matching_stats.empty else "N/A",
+        "% Payroll Jobs Also in SubCentral": f"{citywide_match_pct:.1f}%" if matching_stats is not None and not matching_stats.empty else "N/A",
         "Number of Districts": f"{len(df['District'].unique())}",
         "Number of Schools": f"{len(df['Location'].unique())}"
     }
@@ -378,22 +377,22 @@ def create_district_report(district, district_data, df, output_dir, summary_stat
     
     # Borough card with match percentage
     borough_stats = {
-        "Total Jobs": f"{borough_totals['Total']:,}",
-        "Overall Fill Rate": f"{borough_rates[0]:.1f}%",
+        "Total SubCentral Jobs": f"{borough_totals['Total']:,}",
+        "SubCentral Fill Rate": f"{borough_rates[0]:.1f}%",
         "Vacancy Fill Rate": f"{borough_rates[1]:.1f}%",
         "Absence Fill Rate": f"{borough_rates[2]:.1f}%",
-        "Average Match %": f"{borough_match_pct:.1f}%" if matching_stats is not None and not matching_stats.empty else "N/A",
+        "% Payroll Jobs Also in SubCentral": f"{borough_match_pct:.1f}%" if matching_stats is not None and not matching_stats.empty else "N/A",
         "Number of Schools": f"{len(df[df['Borough'] == district_borough]['Location'].unique())}"
     }
     comparison_cards.append(get_comparison_card_html(f"{district_borough} Statistics", borough_stats, "borough"))
     
     # District card with match percentage
     district_stats = {
-        "Total Jobs": f"{district_totals['Total']:,}",
-        "Overall Fill Rate": f"{district_rates[0]:.1f}%",
+        "Total SubCentral Jobs": f"{district_totals['Total']:,}",
+        "SubCentral Fill Rate": f"{district_rates[0]:.1f}%",
         "Vacancy Fill Rate": f"{district_rates[1]:.1f}%",
         "Absence Fill Rate": f"{district_rates[2]:.1f}%",
-        "Average Match %": f"{district_match_pct:.1f}%" if matching_stats is not None and not matching_stats.empty else "N/A",
+        "% Payroll Jobs Also in SubCentral": f"{district_match_pct:.1f}%" if matching_stats is not None and not matching_stats.empty else "N/A",
         "Number of Schools": f"{len(df[df['District'] == district]['Location'].unique())}"
     }
     comparison_cards.append(get_comparison_card_html(f"This District ({int(float(district))})", district_stats, "district"))
@@ -406,17 +405,27 @@ def create_district_report(district, district_data, df, output_dir, summary_stat
         # Sort by Match Percentage (lowest to highest)
         district_matching_sorted = district_matching.sort_values(match_col, ascending=True)
         
-        # Rename Match_Percentage column for display (remove underscore)
-        district_matching_display = district_matching_sorted.rename(columns={'Match_Percentage': 'Match Percentage'})
-        
-        # Create summary stats
-        subcentral_col = 'SubCentral Job Days' if 'SubCentral Job Days' in district_matching.columns else 'SubCentral_Count'
-        payroll_col = 'Payroll Job Days' if 'Payroll Job Days' in district_matching.columns else 'Payroll_Count'
+        # Find matched column first
         matched_col = None
         for col in district_matching.columns:
             if 'Matched' in col and 'Job' in col:
                 matched_col = col
                 break
+        
+        # Rename columns for display
+        display_column_mapping = {'Match_Percentage': '% Payroll Jobs Also in SubCentral'}
+        if 'SubCentral Job Days' in district_matching_sorted.columns:
+            display_column_mapping['SubCentral Job Days'] = 'SubCentral Jobs'
+        if 'Payroll Job Days' in district_matching_sorted.columns:
+            display_column_mapping['Payroll Job Days'] = 'Payroll Jobs'
+        if matched_col and matched_col in district_matching_sorted.columns:
+            display_column_mapping[matched_col] = 'Jobs Recorded in Both SubCentral and Payroll'
+
+        district_matching_display = district_matching_sorted.rename(columns=display_column_mapping)
+        
+        # Create summary stats
+        subcentral_col = 'SubCentral Job Days' if 'SubCentral Job Days' in district_matching.columns else 'SubCentral_Count'
+        payroll_col = 'Payroll Job Days' if 'Payroll Job Days' in district_matching.columns else 'Payroll_Count'
         
         total_subcentral = district_matching[subcentral_col].sum() if subcentral_col in district_matching.columns else 0
         total_payroll = district_matching[payroll_col].sum() if payroll_col in district_matching.columns else 0
@@ -424,28 +433,28 @@ def create_district_report(district, district_data, df, output_dir, summary_stat
         
         # Create formatters for matching table
         match_formatters = {
-            col: format_pct if 'Match' in col and ('Percentage' in col or '%' in col) else format_int
+            col: format_pct if ('Match' in col and ('Percentage' in col or '%' in col)) or col == '% Payroll Jobs Also in SubCentral' else format_int
             for col in district_matching_display.columns
         }
         
         payroll_analysis_html = f"""
         <div class="section">
             <h3>SubCentral vs Payroll Analysis</h3>
-            <p><em>This analysis matches individual jobs using Location + EIS ID + Date between SubCentral and SREPP payroll systems.</em></p>
+            <p><em>This analysis identifies jobs recorded in both SubCentral and payroll systems.</em></p>
             
             <div class="summary-box">
-                <h4>District Matching Summary</h4>
+                <h4>Summary</h4>
                 <ul>
-                    <li><strong>Total SubCentral Records:</strong> {total_subcentral:,}</li>
-                    <li><strong>Total Payroll Records:</strong> {total_payroll:,}</li>
-                    <li><strong>Total Matched Records:</strong> {total_matched:,}</li>
-                    <li><strong>Average Match Rate:</strong> {district_match_pct:.1f}%</li>
+                    <li><strong>Total SubCentral Jobs:</strong> {total_subcentral:,}</li>
+                    <li><strong>Total Payroll Jobs:</strong> {total_payroll:,}</li>
+                    <li><strong>Jobs Recorded in Both SubCentral and Payroll:</strong> {total_matched:,}</li>
+                    <li><strong>% Payroll Jobs Also in SubCentral:</strong> {district_match_pct:.1f}%</li>
                 </ul>
             </div>
             
             <div class="table-responsive">
-                <p><em><strong>Note:</strong> Data is sorted from lowest to highest Match % to identify schools needing attention.</em></p>
-                {create_conditional_formatted_table(district_matching_display, match_formatters, 'Match Percentage')}
+                <p><em><strong>Note:</strong> To target low-performing schools for direct intervention, in order to enforce consistent use of the system, schools are sorted from lowest to highest use of SubCentral. Schools using SubCentral for less than 70% of their jobs are highlighted in red. Between 70% to 90% in yellow, and those above 90% in green.</em></p>
+                {create_conditional_formatted_table(district_matching_display, match_formatters, '% Payroll Jobs Also in SubCentral', f'district-{int(float(district))}-payroll-table')}
             </div>
         </div>
         """
@@ -474,9 +483,9 @@ def create_district_report(district, district_data, df, output_dir, summary_stat
     
     # Create bar chart (use full data for chart)
     bar_chart_file = os.path.join(district_dir, f'{int(float(district))}_bar_chart.html')
-    create_bar_chart(
+    create_vacancy_absence_chart(
         district_data_sorted,
-        f'Jobs by Classification and Type - District {int(float(district))}',
+        f'SubCentral Vacancy vs Absence Analysis - District {int(float(district))}',
         bar_chart_file,
         f"district_{int(float(district))}_bar_chart"
     )
@@ -545,10 +554,10 @@ def create_district_report(district, district_data, df, output_dir, summary_stat
         'Vacancy Filled': format_int, 'Vacancy Unfilled': format_int, 'Total Vacancy': format_int,
         'Vacancy Fill %': format_pct, 'Absence Filled': format_int, 'Absence Unfilled': format_int,
         'Total Absence': format_int, 'Absence Fill %': format_pct, 'Total Filled': format_int, 
-        'Total Unfilled': format_int, 'Total': format_int, 'Overall Fill %': format_pct
+        'Total Unfilled': format_int, 'Total Jobs': format_int, 'Fill Rate %': format_pct
     }
     summary_by_school_html = create_school_tabbed_tables(
-        summary_by_school.rename(columns={'Location': 'School'}), 
+        summary_by_school.rename(columns={'Location': 'School', 'Total': 'Total Jobs', 'Overall Fill %': 'Fill Rate %'}), 
         school_formatters
     )
     
@@ -573,15 +582,16 @@ def create_district_report(district, district_data, df, output_dir, summary_stat
             {payroll_analysis_html}
 
             <div class="section">
-                <h3>Classification Information</h3>
-                <p><em><strong>Note:</strong> Use the tabs below to switch between different views of the data. Data sorted by highest to lowest total jobs.</em></p>
+                <h3>SubCentral Fill Rate Analysis by Classification</h3>
+                <p><em><strong>Note:</strong> To address staffing gaps and prioritize recruitment of bilingual paraprofessionals in languages that are high-need for your schools, classifications are sorted by the highest total number of jobs.</em></p>
                 {table_html}
+                <p><em>For more in-depth job analysis of vacancies and absences by classification you can click on the "Vacancy and Absence Details" tab</em></p>
             </div>
 
             <div class="section">
-                <h3>Jobs by Classification and Type</h3>
+                <h3>SubCentral Vacancy vs Absence Analysis</h3>
                 <div class="chart-container">
-                    <iframe src="{int(float(district))}_bar_chart.html" width="1220" height="520" frameborder="0"></iframe>
+                    <iframe src="{int(float(district))}_bar_chart.html" width="850" height="520" frameborder="0"></iframe>
                 </div>
             </div>
 
@@ -591,8 +601,8 @@ def create_district_report(district, district_data, df, output_dir, summary_stat
             </div>
             
             <div class="section">
-                <h3>School Level Fill Rates</h3>
-                <p><em><strong>Note:</strong> This data is based on SubCentral data only. Data is sorted from lowest to highest overall fill rate to identify schools needing attention. Use the tabs below to switch between different views. Click on school codes for detailed reports.</em></p>
+                <h3>SubCentral Fill Rate by School</h3>
+                <p><em><strong>Note:</strong> A high fill rate demonstrates effective use of SubCentral which includes: recording jobs early; requesting assistance with hard to fill jobs and proactive substitute recruitment.</em></p>
                 {summary_by_school_html}
                 
                 <h4>Individual School Reports</h4>
@@ -691,39 +701,39 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
     
     # Citywide card
     citywide_stats = {
-        "Total Jobs": f"{overall_stats['Total']:,}",
-        "Total Vacancies": f"{overall_stats['Total_Vacancy']:,} ({(overall_stats['Total_Vacancy'] / overall_stats['Total'] * 100) if overall_stats['Total'] > 0 else 0:.1f}%)",
-        "Total Absences": f"{overall_stats['Total_Absence']:,} ({(overall_stats['Total_Absence'] / overall_stats['Total'] * 100) if overall_stats['Total'] > 0 else 0:.1f}%)",
-        "Overall Fill Rate": f"{citywide_rates[0]:.1f}%",
+        "Total SubCentral Jobs": f"{overall_stats['Total']:,}",
+        "Vacancies": f"{overall_stats['Total_Vacancy']:,} ({(overall_stats['Total_Vacancy'] / overall_stats['Total'] * 100) if overall_stats['Total'] > 0 else 0:.1f}%)",
+        "Absences": f"{overall_stats['Total_Absence']:,} ({(overall_stats['Total_Absence'] / overall_stats['Total'] * 100) if overall_stats['Total'] > 0 else 0:.1f}%)",
+        "SubCentral Fill Rate": f"{citywide_rates[0]:.1f}%",
         "Vacancy Fill Rate": f"{citywide_rates[1]:.1f}%",
         "Absence Fill Rate": f"{citywide_rates[2]:.1f}%",
-        "Average Match %": f"{citywide_match_pct:.1f}%" if citywide_match_pct > 0 else "N/A",
+        "% Payroll Jobs Also in SubCentral": f"{citywide_match_pct:.1f}%" if citywide_match_pct > 0 else "N/A",
         "Number of Schools": f"{len(df['Location'].unique())}"
     }
     comparison_cards.append(get_comparison_card_html("Citywide Statistics", citywide_stats, "citywide"))
     
     # Borough card
     borough_stats = {
-        "Total Jobs": f"{borough_totals['Total']:,}",
-        "Total Vacancies": f"{borough_totals['Total_Vacancy']:,} ({(borough_totals['Total_Vacancy'] / borough_totals['Total'] * 100) if borough_totals['Total'] > 0 else 0:.1f}%)",
-        "Total Absences": f"{borough_totals['Total_Absence']:,} ({(borough_totals['Total_Absence'] / borough_totals['Total'] * 100) if borough_totals['Total'] > 0 else 0:.1f}%)",
-        "Overall Fill Rate": f"{borough_rates[0]:.1f}%",
+        "Total SubCentral Jobs": f"{borough_totals['Total']:,}",
+        "Vacancies": f"{borough_totals['Total_Vacancy']:,} ({(borough_totals['Total_Vacancy'] / borough_totals['Total'] * 100) if borough_totals['Total'] > 0 else 0:.1f}%)",
+        "Absences": f"{borough_totals['Total_Absence']:,} ({(borough_totals['Total_Absence'] / borough_totals['Total'] * 100) if borough_totals['Total'] > 0 else 0:.1f}%)",
+        "SubCentral Fill Rate": f"{borough_rates[0]:.1f}%",
         "Vacancy Fill Rate": f"{borough_rates[1]:.1f}%",
         "Absence Fill Rate": f"{borough_rates[2]:.1f}%",
-        "Average Match %": f"{borough_match_pct:.1f}%" if borough_match_pct > 0 else "N/A",
+        "% Payroll Jobs Also in SubCentral": f"{borough_match_pct:.1f}%" if borough_match_pct > 0 else "N/A",
         "Number of Schools": f"{len(borough_schools_list)}"
     }
     comparison_cards.append(get_comparison_card_html(f"{superintendent_borough} Statistics", borough_stats, "borough"))
     
     # Superintendent card
     superintendent_stats = {
-        "Total Jobs": f"{superintendent_totals['Total']:,}",
-        "Total Vacancies": f"{superintendent_totals['Total_Vacancy']:,} ({(superintendent_totals['Total_Vacancy'] / superintendent_totals['Total'] * 100) if superintendent_totals['Total'] > 0 else 0:.1f}%)",
-        "Total Absences": f"{superintendent_totals['Total_Absence']:,} ({(superintendent_totals['Total_Absence'] / superintendent_totals['Total'] * 100) if superintendent_totals['Total'] > 0 else 0:.1f}%)",
-        "Overall Fill Rate": f"{superintendent_rates[0]:.1f}%",
+        "Total SubCentral Jobs": f"{superintendent_totals['Total']:,}",
+        "Vacancies": f"{superintendent_totals['Total_Vacancy']:,} ({(superintendent_totals['Total_Vacancy'] / superintendent_totals['Total'] * 100) if superintendent_totals['Total'] > 0 else 0:.1f}%)",
+        "Absences": f"{superintendent_totals['Total_Absence']:,} ({(superintendent_totals['Total_Absence'] / superintendent_totals['Total'] * 100) if superintendent_totals['Total'] > 0 else 0:.1f}%)",
+        "SubCentral Fill Rate": f"{superintendent_rates[0]:.1f}%",
         "Vacancy Fill Rate": f"{superintendent_rates[1]:.1f}%",
         "Absence Fill Rate": f"{superintendent_rates[2]:.1f}%",
-        "Average Match %": f"{superintendent_match_pct:.1f}%" if superintendent_match_pct > 0 else "N/A",
+        "% Payroll Jobs Also in SubCentral": f"{superintendent_match_pct:.1f}%" if superintendent_match_pct > 0 else "N/A",
         "Number of Schools": f"{len(superintendent_schools_list)}"
     }
     comparison_cards.append(get_comparison_card_html(f"Superintendent {superintendent}", superintendent_stats, "superintendent"))
@@ -754,9 +764,9 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
     
     # Create bar chart for classification analysis
     bar_chart_file = os.path.join(superintendent_dir, f'{safe_superintendent_name}_bar_chart.html')
-    create_bar_chart(
+    create_vacancy_absence_chart(
         superintendent_data_sorted,
-        f'Jobs by Classification and Type - Superintendent {superintendent}',
+        f'SubCentral Vacancy vs Absence Analysis - Superintendent {superintendent}',
         bar_chart_file,
         f"superintendent_{safe_superintendent_name}_bar_chart"
     )
@@ -802,9 +812,18 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
                 school_aggregated_for_display['Total'].replace(0, 1) * 100
             ).round(1)
             
+            # Define school-specific formatters
+            school_formatters = {
+                'School': str,
+                'Vacancy_Filled': format_int, 'Vacancy_Unfilled': format_int, 'Total_Vacancy': format_int,
+                'Vacancy_Fill_Pct': format_pct, 'Absence_Filled': format_int, 'Absence_Unfilled': format_int,
+                'Total_Absence': format_int, 'Absence_Fill_Pct': format_pct, 'Total_Filled': format_int, 
+                'Total_Unfilled': format_int, 'Total Jobs': format_int, 'Fill Rate %': format_pct
+            }
+            
             summary_by_school_html = create_school_tabbed_tables(
-                school_aggregated_for_display.rename(columns={'Location': 'School'}), 
-                formatters
+                school_aggregated_for_display.rename(columns={'Location': 'School', 'Total': 'Total Jobs', 'Overall_Fill_Pct': 'Fill Rate %'}), 
+                school_formatters
             )
             
             # Create school links with actual reports (prevent duplicates)
@@ -866,6 +885,7 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
             school_links = f'''
             <div class="superintendent-links">
                 <h3> Schools under Superintendent {superintendent}</h3>
+                <p><em><strong>Note:</strong> For job data analysis by school, please click on the school link below.</em></p>
                 <ul>
                     {''.join(school_links_list)}
                 </ul>
@@ -889,10 +909,33 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
             if match_col:
                 superintendent_matching_sorted = superintendent_matching.sort_values(match_col, ascending=True)
                 
+                # Rename columns for display
+                display_column_mapping = {}
+                if 'SubCentral Job Days' in superintendent_matching_sorted.columns:
+                    display_column_mapping['SubCentral Job Days'] = 'SubCentral Jobs'
+                if 'Payroll Job Days' in superintendent_matching_sorted.columns:
+                    display_column_mapping['Payroll Job Days'] = 'Payroll Jobs'
+                
+                # Find and rename matched column
+                matched_col_found = None
+                for col in superintendent_matching_sorted.columns:
+                    if 'Matched' in col and 'Job' in col:
+                        matched_col_found = col
+                        display_column_mapping[col] = 'Jobs Recorded in Both SubCentral and Payroll'
+                        break
+                
+                # Rename match percentage column
+                for col in superintendent_matching_sorted.columns:
+                    if 'Match' in col and ('Percentage' in col or '%' in col):
+                        display_column_mapping[col] = '% Payroll Jobs Also in SubCentral'
+                        break
+                    
+                superintendent_matching_display = superintendent_matching_sorted.rename(columns=display_column_mapping)
+                
                 # Create formatters for matching table
                 match_formatters = {
-                    col: format_pct if 'Match' in col and ('Percentage' in col or '%' in col) else format_int
-                    for col in superintendent_matching_sorted.columns
+                    col: format_pct if ('Match' in col and ('Percentage' in col or '%' in col)) or col == '% Payroll Jobs Also in SubCentral' else format_int
+                    for col in superintendent_matching_display.columns
                 }
                 
                 # Calculate summary stats
@@ -911,21 +954,21 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
                 matching_analysis_html = f"""
                 <div class="section">
                     <h3>SubCentral vs Payroll Analysis</h3>
-                    <p><em>This analysis matches individual jobs using Location + EIS ID + Date between SubCentral and SREPP payroll systems to identify discrepancies and data quality issues.</em></p>
+                    <p><em>This analysis identifies jobs recorded in both SubCentral and payroll systems.</em></p>
                     
                     <div class="summary-box">
-                        <h4>Superintendent Matching Summary</h4>
+                        <h4>Summary</h4>
                         <ul>
-                            <li><strong>Total SubCentral Records:</strong> {total_subcentral:,}</li>
-                            <li><strong>Total Payroll Records:</strong> {total_payroll:,}</li>
-                            <li><strong>Total Matched Records:</strong> {total_matched:,}</li>
-                            <li><strong>Average Match Rate:</strong> {superintendent_match_pct:.1f}%</li>
+                            <li><strong>Total SubCentral Jobs:</strong> {total_subcentral:,}</li>
+                            <li><strong>Total Payroll Jobs:</strong> {total_payroll:,}</li>
+                            <li><strong>Jobs Recorded in Both SubCentral and Payroll:</strong> {total_matched:,}</li>
+                            <li><strong>% Payroll Jobs Also in SubCentral:</strong> {superintendent_match_pct:.1f}%</li>
                         </ul>
                     </div>
                     
                     <div class="table-responsive">
-                        <p><em><strong>Note:</strong> Data is sorted from lowest to highest Match % to identify schools needing attention.</em></p>
-                        {create_conditional_formatted_table(superintendent_matching_sorted, match_formatters, match_col)}
+                        <p><em><strong>Note:</strong> To target low-performing schools for direct intervention, in order to enforce consistent use of the system, schools are sorted from lowest to highest use of SubCentral. Schools using SubCentral for less than 70% of their jobs are highlighted in red. Between 70% to 90% in yellow, and those above 90% in green.</em></p>
+                        {create_conditional_formatted_table(superintendent_matching_display, match_formatters, '% Payroll Jobs Also in SubCentral', f'superintendent-{safe_superintendent_name}-payroll-table')}
                     </div>
                 </div>
                 """
@@ -947,22 +990,22 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
             {matching_analysis_html}
             
             <div class="section">
-                <h3>Fill Rate Analysis by Classification</h3>
-                <p><em><strong>Note:</strong> Data is based on SubCentral records. Use the tabs below to switch between
-                different views. Data is sorted from highest to lowest number of total jobs.</em></p>
+                <h3>SubCentral Fill Rate Analysis by Classification</h3>
+                <p><em><strong>Note:</strong> To address staffing gaps and prioritize recruitment of bilingual paraprofessionals in languages that are high-need for your schools, classifications are sorted by the highest total number of jobs.</em></p>
                 {classification_html}
+                <p><em>For more in-depth job analysis of vacancies and absences by classification you can click on the "Vacancy and Absence Details" tab</em></p>
             </div>
             
             <div class="section">
-                <h3>Jobs by Classification and Type</h3>
+                <h3>SubCentral Vacancy vs Absence Analysis</h3>
                 <div class="chart-container">
-                    <iframe src="{safe_superintendent_name}_bar_chart.html" width="1220" height="520" frameborder="0"></iframe>
+                    <iframe src="{safe_superintendent_name}_bar_chart.html" width="850" height="520" frameborder="0"></iframe>
                 </div>
             </div>
             
             <div class="section">
-                <h3>School Level Fill Rates</h3>
-                <p><em><strong>Note:</strong> This data is based on SubCentral data only. Data is sorted from lowest to highest overall fill rate to identify schools needing attention. Use the tabs below to switch between different views.</em></p>
+                <h3>SubCentral Fill Rate by School</h3>
+                <p><em><strong>Note:</strong> A high fill rate demonstrates effective use of SubCentral which includes: recording jobs early; requesting assistance with hard to fill jobs and proactive substitute recruitment.</em></p>
                 {summary_by_school_html}
                 
                 {school_links}
@@ -1047,7 +1090,6 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
     3. Classification Information (sorted highest to lowest total jobs)
     4. Individual Schools (with helpful notes)
     """
-    import pandas as pd
     # Create subfolder for borough
     borough_clean = borough.replace(' ', '_').replace('/', '_')
     borough_dir = os.path.join(output_dir, f"Borough_{borough_clean}")
@@ -1099,22 +1141,22 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
     
     # Citywide card with match percentage
     citywide_stats = {
-        "Total Jobs": f"{overall_stats['Total']:,}",
-        "Overall Fill Rate": f"{citywide_rates[0]:.1f}%",
+        "Total SubCentral Jobs": f"{overall_stats['Total']:,}",
+        "SubCentral Fill Rate": f"{citywide_rates[0]:.1f}%",
         "Vacancy Fill Rate": f"{citywide_rates[1]:.1f}%",
         "Absence Fill Rate": f"{citywide_rates[2]:.1f}%",
-        "Average Match %": f"{citywide_avg_match:.1f}%" if citywide_avg_match > 0 else "N/A",
+        "% Payroll Jobs Also in SubCentral": f"{citywide_avg_match:.1f}%" if citywide_avg_match > 0 else "N/A",
         "Number of Schools": f"{len(df['Location'].unique())}"
     }
     comparison_cards.append(get_comparison_card_html("Citywide Statistics", citywide_stats, "citywide"))
     
     # Borough card with match percentage  
     borough_stats = {
-        "Total Jobs": f"{borough_totals['Total']:,}",
-        "Overall Fill Rate": f"{borough_rates[0]:.1f}%",
+        "Total SubCentral Jobs": f"{borough_totals['Total']:,}",
+        "SubCentral Fill Rate": f"{borough_rates[0]:.1f}%",
         "Vacancy Fill Rate": f"{borough_rates[1]:.1f}%",
         "Absence Fill Rate": f"{borough_rates[2]:.1f}%",
-        "Average Match %": f"{borough_avg_match:.1f}%" if borough_avg_match > 0 else "N/A",
+        "% Payroll Jobs Also in SubCentral": f"{borough_avg_match:.1f}%" if borough_avg_match > 0 else "N/A",
         "Number of Schools": f"{len(df[df['Borough'] == borough]['Location'].unique())}"
     }
     comparison_cards.append(get_comparison_card_html(f"This Borough", borough_stats, "borough"))
@@ -1162,41 +1204,48 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
                 # Sort by Match Percentage (lowest to highest per feedback)
                 district_analysis = district_analysis.sort_values('Match_Percentage', ascending=True)
                 
-                # Rename column for display (remove underscore)
-                district_analysis_display = district_analysis.rename(columns={'Match_Percentage': 'Match Percentage'})
+                # Rename columns for display
+                display_column_mapping = {'Match_Percentage': '% Payroll Jobs Also in SubCentral'}
+                if 'SubCentral Job Days' in district_analysis.columns:
+                    display_column_mapping['SubCentral Job Days'] = 'SubCentral Jobs'
+                if 'Payroll Job Days' in district_analysis.columns:
+                    display_column_mapping['Payroll Job Days'] = 'Payroll Jobs'
+                if matched_col and matched_col in district_analysis.columns:
+                    display_column_mapping[matched_col] = 'Jobs Recorded in Both SubCentral and Payroll'
+                district_analysis_display = district_analysis.rename(columns=display_column_mapping)
                 
                 # Calculate totals
                 total_subcentral = district_analysis[subcentral_col].sum()
                 total_payroll = district_analysis['Payroll Job Days' if 'Payroll Job Days' in borough_matching.columns else 'Payroll_Count'].sum()
                 total_matched = district_analysis[matched_col].sum()
                 
-                # Create formatters for district analysis table
+                # Create formatters for district analysis table (using display column names)
                 district_formatters = {
                     'District': lambda x: f"District {int(x)}",
-                    subcentral_col: format_int,
-                    'Payroll Job Days' if 'Payroll Job Days' in borough_matching.columns else 'Payroll_Count': format_int,
-                    matched_col: format_int,
-                    'Match Percentage': format_pct
+                    'SubCentral Jobs' if 'SubCentral Job Days' in borough_matching.columns else 'SubCentral_Count': format_int,
+                    'Payroll Jobs' if 'Payroll Job Days' in borough_matching.columns else 'Payroll_Count': format_int,
+                    'Jobs Recorded in Both SubCentral and Payroll': format_int,
+                    '% Payroll Jobs Also in SubCentral': format_pct
                 }
                 
                 payroll_analysis_html = f"""
                 <div class="section">
                     <h3>SubCentral vs Payroll Analysis (District Level)</h3>
-                    <p><em>This analysis shows district-level matching within {borough} borough.</em></p>
+                    <p><em>This analysis identifies jobs recorded in both SubCentral and payroll systems.</em></p>
                     
                     <div class="summary-box">
-                        <h4>Borough Matching Summary</h4>
+                        <h4>Summary</h4>
                         <ul>
-                            <li><strong>Total SubCentral Records:</strong> {total_subcentral:,}</li>
-                            <li><strong>Total Payroll Records:</strong> {total_payroll:,}</li>
-                            <li><strong>Total Matched Records:</strong> {total_matched:,}</li>
-                            <li><strong>Average Match Rate:</strong> {borough_avg_match:.1f}%</li>
+                            <li><strong>Total SubCentral Jobs:</strong> {total_subcentral:,}</li>
+                            <li><strong>Total Payroll Jobs:</strong> {total_payroll:,}</li>
+                            <li><strong>Jobs Recorded in Both SubCentral and Payroll:</strong> {total_matched:,}</li>
+                            <li><strong>% Payroll Jobs Also in SubCentral:</strong> {borough_avg_match:.1f}%</li>
                         </ul>
                     </div>
                     
                     <div class="table-responsive">
-                        <p><em><strong>Note:</strong> Data is sorted from lowest to highest Match % to identify districts needing attention.</em></p>
-                        {create_conditional_formatted_table(district_analysis_display, district_formatters, 'Match Percentage')}
+                        <p><em><strong>Note:</strong> To target low-performing schools for direct intervention, in order to enforce consistent use of the system, schools are sorted from lowest to highest use of SubCentral. Schools using SubCentral for less than 70% of their jobs are highlighted in red. Between 70% to 90% in yellow, and those above 90% in green.</em></p>
+                        {create_conditional_formatted_table(district_analysis_display, district_formatters, '% Payroll Jobs Also in SubCentral', f'borough-{borough_clean}-payroll-table')}
                     </div>
                 </div>
                 """
@@ -1226,9 +1275,9 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
     
     # Create bar chart
     bar_chart_file = os.path.join(borough_dir, f'{borough_clean}_bar_chart.html')
-    create_bar_chart(
+    create_vacancy_absence_chart(
         borough_data_sorted,
-        f'Jobs by Classification and Type - {borough}',
+        f'SubCentral Vacancy vs Absence Analysis - {borough}',
         bar_chart_file,
         f"borough_{borough_clean}_bar_chart"
     )
@@ -1257,7 +1306,7 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
         'Vacancy Filled': format_int, 'Vacancy Unfilled': format_int, 'Total Vacancy': format_int,
         'Vacancy Fill %': format_pct, 'Absence Filled': format_int, 'Absence Unfilled': format_int,
         'Total Absence': format_int, 'Absence Fill %': format_pct, 'Total Filled': format_int, 
-        'Total Unfilled': format_int, 'Total': format_int, 'Overall Fill %': format_pct
+        'Total Unfilled': format_int, 'Total Jobs': format_int, 'Fill Rate %': format_pct
     }
     district_summary_html = create_district_tabbed_tables(
         district_summary.rename(columns={
@@ -1265,7 +1314,7 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
             'Vacancy_Filled': 'Vacancy_Filled', 'Vacancy_Unfilled': 'Vacancy_Unfilled', 'Total_Vacancy': 'Total_Vacancy',
             'Vacancy_Fill_Pct': 'Vacancy_Fill_Pct', 'Absence_Filled': 'Absence_Filled', 'Absence_Unfilled': 'Absence_Unfilled',
             'Total_Absence': 'Total_Absence', 'Absence_Fill_Pct': 'Absence_Fill_Pct', 'Total_Filled': 'Total_Filled', 
-            'Total_Unfilled': 'Total_Unfilled', 'Total': 'Total', 'Overall_Fill_Pct': 'Overall_Fill_Pct'
+            'Total_Unfilled': 'Total_Unfilled', 'Total': 'Total Jobs', 'Overall_Fill_Pct': 'Fill Rate %'
         }), 
         district_formatters
     )
@@ -1299,16 +1348,16 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
 
             <!-- SECTION 3: Classification Information -->
             <div class="section">
-                <h3>3. Classification Information (Borough Level)</h3>
-                <h4>Summary Statistics</h4>
-                <p><em>Data sorted from highest to lowest total jobs</em></p>
+                <h3>3. SubCentral Fill Rate Analysis by Classification (Borough Level)</h3>
+                <p><em><strong>Note:</strong> To address staffing gaps and prioritize recruitment of bilingual paraprofessionals in languages that are high-need for your schools, classifications are sorted by the highest total number of jobs.</em></p>
                 {classification_table_html}
+                <p><em>For more in-depth job analysis of vacancies and absences by classification you can click on the "Vacancy and Absence Details" tab</em></p>
             </div>
 
             <div class="section">
-                <h4>Jobs by Classification Type</h4>
+                <h4>SubCentral Vacancy vs Absence Analysis</h4>
                 <div class="chart-container">
-                    <iframe src="{borough_clean}_bar_chart.html" width="1220" height="520" frameborder="0"></iframe>
+                    <iframe src="{borough_clean}_bar_chart.html" width="850" height="520" frameborder="0"></iframe>
                 </div>
             </div>
 
@@ -1320,7 +1369,7 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
             <!-- SECTION 4: District Level Fill Rates -->
             <div class="section">
                 <h3>4. District Level Fill Rates</h3>
-                <p><em><strong>Note:</strong> Data is sorted from lowest to highest overall fill rate to identify districts needing attention. This data is based on SubCentral data only. Use the tabs below to switch between different views. Click on district links for detailed reports.</em></p>
+                <p><em><strong>Note:</strong> A high fill rate demonstrates effective use of SubCentral which includes: recording jobs early; requesting assistance with hard to fill jobs and proactive substitute recruitment.</em></p>
                 {district_summary_html}
                 
                 <h4>Individual District Reports</h4>
@@ -1351,7 +1400,6 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
     3. Classification Information (sorted highest to lowest total jobs)
     4. Borough Breakdowns
     """
-    import pandas as pd
     
     # Create district stats from raw data for the overall summary
     # (Even though we use superintendent-based reports, we still want district-level summary in overall view)
@@ -1479,21 +1527,29 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
                 # Sort by Match Percentage (lowest to highest per feedback)
                 borough_analysis = borough_analysis.sort_values('Match_Percentage', ascending=True)
                 
-                # Rename column for display (remove underscore)
-                borough_analysis_display = borough_analysis.rename(columns={'Match_Percentage': 'Match Percentage'})
+                # Rename columns for display
+                display_column_mapping = {'Match_Percentage': '% Payroll Jobs Also in SubCentral'}
+                if 'SubCentral Job Days' in borough_analysis.columns:
+                    display_column_mapping['SubCentral Job Days'] = 'SubCentral Jobs'
+                if 'Payroll Job Days' in borough_analysis.columns:
+                    display_column_mapping['Payroll Job Days'] = 'Payroll Jobs'
+                if matched_col and matched_col in borough_analysis.columns:
+                    display_column_mapping[matched_col] = 'Jobs Recorded in Both SubCentral and Payroll'
+
+                borough_analysis_display = borough_analysis.rename(columns=display_column_mapping)
                 
                 # Calculate totals
                 total_subcentral = borough_analysis[subcentral_col].sum()
                 total_payroll = borough_analysis['Payroll Job Days' if 'Payroll Job Days' in matching_stats.columns else 'Payroll_Count'].sum()
                 total_matched = borough_analysis[matched_col].sum()
                 
-                # Create formatters for borough analysis table
+                # Create formatters for borough analysis table (using display column names)
                 borough_formatters = {
                     'Borough': str,
-                    subcentral_col: format_int,
-                    'Payroll Job Days' if 'Payroll Job Days' in matching_stats.columns else 'Payroll_Count': format_int,
-                    matched_col: format_int,
-                    'Match Percentage': format_pct
+                    'SubCentral Jobs' if 'SubCentral Job Days' in matching_stats.columns else 'SubCentral_Count': format_int,
+                    'Payroll Jobs' if 'Payroll Job Days' in matching_stats.columns else 'Payroll_Count': format_int,
+                    'Jobs Recorded in Both SubCentral and Payroll': format_int,
+                    '% Payroll Jobs Also in SubCentral': format_pct
                 }
                 
                 payroll_analysis_html = f"""
@@ -1513,7 +1569,7 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
                     
                     <div class="table-responsive">
                         <p><em><strong>Note:</strong> Data is sorted from lowest to highest Match % to identify boroughs needing attention.</em></p>
-                        {create_conditional_formatted_table(borough_analysis_display, borough_formatters, 'Match Percentage')}
+                        {create_conditional_formatted_table(borough_analysis_display, borough_formatters, '% Payroll Jobs Also in SubCentral', 'citywide-payroll-table')}
                     </div>
                 </div>
                 """
@@ -1616,8 +1672,14 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
             else:
                 borough_formatters[col] = str
         
+        # Update formatters for renamed columns
+        if 'Total' in borough_formatters:
+            borough_formatters['Total Jobs'] = borough_formatters.pop('Total')
+        if 'Overall_Fill_Pct' in borough_formatters:
+            borough_formatters['Fill Rate %'] = borough_formatters.pop('Overall_Fill_Pct')
+        
         borough_table_html = create_borough_tabbed_tables(
-            borough_for_table, 
+            borough_for_table.rename(columns={'Total': 'Total Jobs', 'Overall_Fill_Pct': 'Fill Rate %'}), 
             borough_formatters
         )
     else:
@@ -1642,8 +1704,14 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
         else:
             district_formatters[col] = str
     
+    # Update formatters for renamed columns
+    if 'Total' in district_formatters:
+        district_formatters['Total Jobs'] = district_formatters.pop('Total')
+    if 'Overall_Fill_Pct' in district_formatters:
+        district_formatters['Fill Rate %'] = district_formatters.pop('Overall_Fill_Pct')
+    
     district_table_html = create_district_tabbed_tables(
-        district_for_table, 
+        district_for_table.rename(columns={'Total': 'Total Jobs', 'Overall_Fill_Pct': 'Fill Rate %'}), 
         district_formatters
     )
     
@@ -1692,10 +1760,10 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
             
             <!-- SECTION 3: Classification Information -->
             <div class="section">
-                <h3>3. Classification Information (Citywide)</h3>
-                <h4>Summary Statistics</h4>
-                <p><em>Data sorted from highest to lowest total jobs</em></p>
+                <h3>3. SubCentral Fill Rate Analysis by Classification (Citywide)</h3>
+                <p><em><strong>Note:</strong> To address staffing gaps and prioritize recruitment of bilingual paraprofessionals in languages that are high-need for your schools, classifications are sorted by the highest total number of jobs.</em></p>
                 {overall_table_html}
+                <p><em>For more in-depth job analysis of vacancies and absences by classification you can click on the "Vacancy and Absence Details" tab</em></p>
             </div>
             
             <div class="section">
@@ -1717,7 +1785,7 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
             <div class="section">
                 <h3>5. District Level Fill Rates</h3>
                 <h4>Summary by District</h4>
-                <p><em><strong>Note:</strong> Data is sorted from lowest to highest overall fill rate to identify districts needing attention. Use the tabs below to switch between different views. Click on district links for detailed reports.</em></p>
+                <p><em><strong>Note:</strong> A high fill rate demonstrates effective use of SubCentral which includes: recording jobs early; requesting assistance with hard to fill jobs and proactive substitute recruitment.</em></p>
                 {district_table_html}
                 {district_map_html}
             </div>
