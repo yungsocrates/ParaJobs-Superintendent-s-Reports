@@ -72,7 +72,8 @@ def create_vacancy_absence_chart(data, title, output_file, div_id=None):
             y=1.02,
             xanchor="right",
             x=1
-        )
+        ),
+        margin=dict(b=20)  # Reduced bottom margin since no annotation
     )
     
     # Ensure the directory exists

@@ -1164,6 +1164,7 @@ def create_classification_tabbed_tables(data, formatters, debug_district=False):
                 <div class="table-responsive">
                     <p><em>No data available for this table.</em></p>
                 </div>
+                <p><em><strong>Note:</strong> Absences are historically harder to fill. Schools with a high number of unfilled absences should be encouraged to: either record the absences at their earliest opportunity OR create vacancies to offset the number of daily absences.</em></p>
             </div>
         </div>
         """
@@ -1236,6 +1237,7 @@ def create_classification_tabbed_tables(data, formatters, debug_district=False):
         
         <div class="tab-content" data-tab="details" data-tab-title="Vacancy and Absence Details">
             <div class="table-responsive">{details_html}</div>
+            <p><em><strong>Note:</strong> Absences are historically harder to fill. Schools with a high number of unfilled absences should be encouraged to: either record the absences at their earliest opportunity OR create vacancies to offset the number of daily absences.</em></p>
         </div>
     </div>
     """

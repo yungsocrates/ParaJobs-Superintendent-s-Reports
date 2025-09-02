@@ -16,7 +16,7 @@ from chart_utils import (
     create_bar_chart, create_pie_charts_for_data, create_overall_bar_chart, create_vacancy_absence_chart
 )
 from data_processing import (
-    format_pct, format_int, create_summary_stats, calculate_fill_rates, get_totals_from_data, copy_logo_to_output
+    format_pct, format_int, create_summary_stats, calculate_fill_rates, get_totals_from_data, copy_logo_to_output, get_actual_job_count_for_school
 )
 
 def create_school_report(district, location, location_clean, school_data, df, summary_stats, output_dir, date_range_info, matching_stats=None):
@@ -162,6 +162,10 @@ def create_superintendent_school_report(superintendent, location, location_clean
     superintendent_totals = get_totals_from_data(superintendent_data)
     school_totals = get_totals_from_data(school_data)
     
+    # Use actual job count for school total (same as school cards)
+    actual_total_jobs = get_actual_job_count_for_school(df, location)
+    school_totals['Total'] = actual_total_jobs
+    
     # Calculate fill rates
     school_rates = calculate_fill_rates(school_totals)
     citywide_rates = calculate_fill_rates(overall_stats)
@@ -230,6 +234,7 @@ def create_superintendent_school_report(superintendent, location, location_clean
                 school_match_pct = school_matching[match_col].iloc[0] if pd.notna(school_matching[match_col].iloc[0]) else 0
     
     # School card (without Classifications, with payroll percentage)
+    # Total jobs now comes from corrected school_totals
     school_stats = {
         "Total SubCentral Jobs": f"{school_totals['Total']:,}",
         "Vacancies": f"{school_totals['Total_Vacancy']:,} ({(school_totals['Total_Vacancy'] / school_totals['Total'] * 100) if school_totals['Total'] > 0 else 0:.1f}%)",
@@ -270,6 +275,7 @@ def create_superintendent_school_report(superintendent, location, location_clean
 
             <div class="section">
                 <h3>SubCentral Vacancy vs Absence Analysis</h3>
+                <p><em><strong>Note:</strong> Absences are historically harder to fill. Schools with a high number of unfilled absences should be encouraged to: either record the absences at their earliest opportunity OR create vacancies to offset the number of daily absences.</em></p>
                 <div class="chart-container">
                     <iframe src="{safe_location_name}_bar_chart.html" width="850" height="520" frameborder="0"></iframe>
                 </div>
@@ -415,7 +421,7 @@ def create_district_report(district, district_data, df, output_dir, summary_stat
         # Rename columns for display
         display_column_mapping = {'Match_Percentage': '% Payroll Jobs Also in SubCentral'}
         if 'SubCentral Job Days' in district_matching_sorted.columns:
-            display_column_mapping['SubCentral Job Days'] = 'SubCentral Jobs'
+            display_column_mapping['SubCentral Job Days'] = 'SubCentral Filled Jobs'
         if 'Payroll Job Days' in district_matching_sorted.columns:
             display_column_mapping['Payroll Job Days'] = 'Payroll Jobs'
         if matched_col and matched_col in district_matching_sorted.columns:
@@ -520,6 +526,10 @@ def create_district_report(district, district_data, df, output_dir, summary_stat
     summary_by_school['Total_Filled'] = summary_by_school['Vacancy_Filled'] + summary_by_school['Absence_Filled']
     summary_by_school['Total_Unfilled'] = summary_by_school['Vacancy_Unfilled'] + summary_by_school['Absence_Unfilled']
     
+    # Replace Total column with actual job counts (same as school cards)
+    summary_by_school['Total'] = summary_by_school['Location'].apply(lambda loc: get_actual_job_count_for_school(df, loc))
+    
+    # Recalculate Overall_Fill_Pct using actual totals
     summary_by_school['Overall_Fill_Pct'] = ((summary_by_school['Vacancy_Filled'] + summary_by_school['Absence_Filled']) / summary_by_school['Total'] * 100).fillna(0).round(1)
     
     # Generate school reports and links
@@ -545,7 +555,8 @@ def create_district_report(district, district_data, df, output_dir, summary_stat
             )
             school_reports.append(school_report)
             
-            total_jobs = int(school_summary['Total'].sum())
+            # Use actual job count instead of aggregated vacancy+absence totals
+            total_jobs = get_actual_job_count_for_school(df, location)
             school_links += f'<li><a href="Schools/School_{location_clean}/{location_clean}_report.html">{location}</a> - {total_jobs:,} total jobs</li>\n'
     
     # Create school summary table HTML using tabbed interface
@@ -590,6 +601,7 @@ def create_district_report(district, district_data, df, output_dir, summary_stat
 
             <div class="section">
                 <h3>SubCentral Vacancy vs Absence Analysis</h3>
+                <p><em><strong>Note:</strong> Absences are historically harder to fill. Schools with a high number of unfilled absences should be encouraged to: either record the absences at their earliest opportunity OR create vacancies to offset the number of daily absences.</em></p>
                 <div class="chart-container">
                     <iframe src="{int(float(district))}_bar_chart.html" width="850" height="520" frameborder="0"></iframe>
                 </div>
@@ -807,6 +819,11 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
                 school_aggregated_for_display['Vacancy_Unfilled'] + 
                 school_aggregated_for_display['Absence_Unfilled']
             )
+            
+            # Replace Total column with actual job counts (same as school cards)
+            school_aggregated_for_display['Total'] = school_aggregated_for_display['Location'].apply(lambda loc: get_actual_job_count_for_school(df, loc))
+            
+            # Recalculate Overall_Fill_Pct using actual totals
             school_aggregated_for_display['Overall_Fill_Pct'] = (
                 school_aggregated_for_display['Total_Filled'] / 
                 school_aggregated_for_display['Total'].replace(0, 1) * 100
@@ -872,7 +889,8 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
             school_links_list = []
             for _, school in school_aggregated.iterrows():
                 location = school['Location']
-                total_jobs = school['Total']  # Use 'Total' instead of 'Total_Jobs'
+                # Use actual job count instead of aggregated totals (same as school cards)
+                total_jobs = get_actual_job_count_for_school(df, location)
                 # Create clean location name for file path
                 location_clean = re.sub(r'[<>:"/\\|?*\n\r\t\s]', '_', str(location)).strip()
                 location_clean = re.sub(r'_+', '_', location_clean).strip('_')
@@ -912,7 +930,7 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
                 # Rename columns for display
                 display_column_mapping = {}
                 if 'SubCentral Job Days' in superintendent_matching_sorted.columns:
-                    display_column_mapping['SubCentral Job Days'] = 'SubCentral Jobs'
+                    display_column_mapping['SubCentral Job Days'] = 'SubCentral Filled Jobs'
                 if 'Payroll Job Days' in superintendent_matching_sorted.columns:
                     display_column_mapping['Payroll Job Days'] = 'Payroll Jobs'
                 
@@ -998,6 +1016,7 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
             
             <div class="section">
                 <h3>SubCentral Vacancy vs Absence Analysis</h3>
+                <p><em><strong>Note:</strong> Absences are historically harder to fill. Schools with a high number of unfilled absences should be encouraged to: either record the absences at their earliest opportunity OR create vacancies to offset the number of daily absences.</em></p>
                 <div class="chart-container">
                     <iframe src="{safe_superintendent_name}_bar_chart.html" width="850" height="520" frameborder="0"></iframe>
                 </div>
@@ -1207,7 +1226,7 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
                 # Rename columns for display
                 display_column_mapping = {'Match_Percentage': '% Payroll Jobs Also in SubCentral'}
                 if 'SubCentral Job Days' in district_analysis.columns:
-                    display_column_mapping['SubCentral Job Days'] = 'SubCentral Jobs'
+                    display_column_mapping['SubCentral Job Days'] = 'SubCentral Filled Jobs'
                 if 'Payroll Job Days' in district_analysis.columns:
                     display_column_mapping['Payroll Job Days'] = 'Payroll Jobs'
                 if matched_col and matched_col in district_analysis.columns:
@@ -1356,6 +1375,7 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
 
             <div class="section">
                 <h4>SubCentral Vacancy vs Absence Analysis</h4>
+                <p><em><strong>Note:</strong> Absences are historically harder to fill. Schools with a high number of unfilled absences should be encouraged to: either record the absences at their earliest opportunity OR create vacancies to offset the number of daily absences.</em></p>
                 <div class="chart-container">
                     <iframe src="{borough_clean}_bar_chart.html" width="850" height="520" frameborder="0"></iframe>
                 </div>
@@ -1530,7 +1550,7 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
                 # Rename columns for display
                 display_column_mapping = {'Match_Percentage': '% Payroll Jobs Also in SubCentral'}
                 if 'SubCentral Job Days' in borough_analysis.columns:
-                    display_column_mapping['SubCentral Job Days'] = 'SubCentral Jobs'
+                    display_column_mapping['SubCentral Job Days'] = 'SubCentral Filled Jobs'
                 if 'Payroll Job Days' in borough_analysis.columns:
                     display_column_mapping['Payroll Job Days'] = 'Payroll Jobs'
                 if matched_col and matched_col in borough_analysis.columns:

@@ -375,6 +375,11 @@ def create_matching_analysis(main_df, srepp_df):
                 filled_jobs = filled_jobs[filled_jobs['Job Start'].notna()].copy()
                 print(f"  SubCentral jobs with valid dates: {len(filled_jobs)}")
                 
+                # Apply same date filter as SREPP - only include dates up to 6/26 for fair comparison
+                cutoff_date = pd.to_datetime('2025-06-26')  # Same cutoff as SREPP
+                filled_jobs = filled_jobs[filled_jobs['Job Start'] <= cutoff_date].copy()
+                print(f"  SubCentral jobs after filtering to dates up to 6/26: {len(filled_jobs)}")
+                
                 if len(filled_jobs) == 0:
                     print("  No SubCentral jobs with valid dates found")
                 else:
@@ -475,13 +480,23 @@ def create_matching_analysis(main_df, srepp_df):
                     
                     # Parse dates and convert to integer format (YYYYMMDD)
                     srepp_df_copy['DATE_Clean'] = pd.to_datetime(srepp_df_copy['DATE'], errors='coerce')
-                    srepp_df_copy['Date_Int'] = srepp_df_copy['DATE_Clean'].dt.strftime('%Y%m%d').astype(str)
                     
-                    # Remove records with invalid dates
+                    # Filter SREPP data to only include dates up to 6/26 (June 26th)
+                    # Assume current year if no year specified
+                    cutoff_date = pd.to_datetime('2025-06-26')  # Adjust year as needed
+                    
+                    # Remove records with invalid dates first
                     valid_srepp = srepp_df_copy[srepp_df_copy['DATE_Clean'].notna()].copy()
                     print(f"  SREPP records with valid dates: {len(valid_srepp)}")
                     
+                    # Filter to only dates up to 6/26
+                    valid_srepp = valid_srepp[valid_srepp['DATE_Clean'] <= cutoff_date].copy()
+                    print(f"  SREPP records after filtering to dates up to 6/26: {len(valid_srepp)}")
+                    
                     if len(valid_srepp) > 0:
+                        # Convert to integer format after filtering
+                        valid_srepp['Date_Int'] = valid_srepp['DATE_Clean'].dt.strftime('%Y%m%d').astype(str)
+                        
                         # Create job identifiers: SCHOOL_CLEAN+EISID_CLEAN+DATE_INTEGER
                         valid_srepp['Job_ID'] = (
                             valid_srepp['School_Clean'] + '|' + 
@@ -804,6 +819,24 @@ def get_totals_from_data(data):
         'Vacancy_Filled': int(data['Vacancy_Filled'].sum()),
         'Absence_Filled': int(data['Absence_Filled'].sum())
     }
+
+def get_actual_job_count_for_school(main_df, location):
+    """
+    Get the actual count of ALL jobs for a specific school from the raw data
+    This counts every row in the original data for that location, regardless of type
+    
+    Args:
+        main_df: The original DataFrame with all job records
+        location: School location code
+    
+    Returns:
+        int: Total number of jobs (all types) for this school
+    """
+    if main_df.empty:
+        return 0
+    
+    school_jobs = main_df[main_df['Location'] == location]
+    return len(school_jobs)
 
 # Formatting functions for display
 def format_pct(value):
