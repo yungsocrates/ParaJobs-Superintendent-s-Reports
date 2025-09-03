@@ -423,7 +423,7 @@ def create_district_report(district, district_data, df, output_dir, summary_stat
         district_matching_display = district_matching_sorted.rename(columns=display_column_mapping)
         
         # Create summary stats
-        subcentral_col = 'SubCentral Job Days' if 'SubCentral Job Days' in district_matching.columns else 'SubCentral_Count'
+        subcentral_col = 'SubCentral Filled Jobs' if 'SubCentral Filled Jobs' in district_matching.columns else 'SubCentral_Count'
         payroll_col = 'Payroll Job Days' if 'Payroll Job Days' in district_matching.columns else 'Payroll_Count'
         
         total_subcentral = district_matching[subcentral_col].sum() if subcentral_col in district_matching.columns else 0
@@ -949,7 +949,7 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
                 }
                 
                 # Calculate summary stats
-                subcentral_col = 'SubCentral Job Days' if 'SubCentral Job Days' in superintendent_matching.columns else 'SubCentral_Count'
+                subcentral_col = 'SubCentral Filled Jobs' if 'SubCentral Filled Jobs' in superintendent_matching.columns else 'SubCentral_Count'
                 payroll_col = 'Payroll Job Days' if 'Payroll Job Days' in superintendent_matching.columns else 'Payroll_Count'
                 matched_col = None
                 for col in superintendent_matching.columns:
@@ -1191,8 +1191,8 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
             
             # Aggregate by district to show district-level analysis
             district_analysis = borough_matching_with_district.groupby('District').agg({
-                'SubCentral Job Days' if 'SubCentral Job Days' in borough_matching.columns else 'SubCentral_Count': 'sum',
-                'Payroll Job Days' if 'Payroll Job Days' in borough_matching.columns else 'Payroll_Count': 'sum'
+                'SubCentral Filled Jobs': 'sum',
+                'Payroll Job Days': 'sum'
             }).reset_index()
             
             # Find matched column and add it
@@ -1207,7 +1207,7 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
                 district_analysis = district_analysis.merge(district_matched, on='District', how='left')
                 
                 # Calculate district-level match percentages
-                subcentral_col = 'SubCentral Job Days' if 'SubCentral Job Days' in borough_matching.columns else 'SubCentral_Count'
+                subcentral_col = 'SubCentral Filled Jobs'
                 district_analysis['Match_Percentage'] = (
                     district_analysis[matched_col] / district_analysis[subcentral_col] * 100
                 ).round(1)
@@ -1217,24 +1217,28 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
                 
                 # Rename columns for display
                 display_column_mapping = {'Match_Percentage': '% Payroll Jobs Also in SubCentral'}
-                if 'SubCentral Job Days' in district_analysis.columns:
-                    display_column_mapping['SubCentral Job Days'] = 'SubCentral Filled Jobs'
+                if 'SubCentral Filled Jobs' in district_analysis.columns:
+                    display_column_mapping['SubCentral Filled Jobs'] = 'SubCentral Filled Jobs'
                 if 'Payroll Job Days' in district_analysis.columns:
                     display_column_mapping['Payroll Job Days'] = 'Payroll Jobs'
                 if matched_col and matched_col in district_analysis.columns:
                     display_column_mapping[matched_col] = 'Jobs Recorded in Both SubCentral and Payroll'
                 district_analysis_display = district_analysis.rename(columns=display_column_mapping)
                 
+                # Define column names for calculations
+                subcentral_col = 'SubCentral Filled Jobs' if 'SubCentral Filled Jobs' in district_analysis.columns else 'SubCentral_Count'
+                matched_col = 'Matched Jobs' if 'Matched Jobs' in district_analysis.columns else 'Matched_Count'
+                
                 # Calculate totals
                 total_subcentral = district_analysis[subcentral_col].sum()
-                total_payroll = district_analysis['Payroll Job Days' if 'Payroll Job Days' in borough_matching.columns else 'Payroll_Count'].sum()
+                total_payroll = district_analysis['Payroll Job Days' if 'Payroll Job Days' in district_analysis.columns else 'Payroll_Count'].sum()
                 total_matched = district_analysis[matched_col].sum()
                 
                 # Create formatters for district analysis table (using display column names)
                 district_formatters = {
                     'District': lambda x: f"District {int(x)}",
-                    'SubCentral Jobs' if 'SubCentral Job Days' in borough_matching.columns else 'SubCentral_Count': format_int,
-                    'Payroll Jobs' if 'Payroll Job Days' in borough_matching.columns else 'Payroll_Count': format_int,
+                    'SubCentral Jobs': format_int,
+                    'Payroll Jobs': format_int,
                     'Jobs Recorded in Both SubCentral and Payroll': format_int,
                     '% Payroll Jobs Also in SubCentral': format_pct
                 }
@@ -1515,8 +1519,8 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
             
             # Aggregate by borough to show borough-level analysis (ensuring unique boroughs)
             borough_analysis = matching_with_borough.groupby('Borough', as_index=False).agg({
-                'SubCentral Job Days' if 'SubCentral Job Days' in matching_stats.columns else 'SubCentral_Count': 'sum',
-                'Payroll Job Days' if 'Payroll Job Days' in matching_stats.columns else 'Payroll_Count': 'sum'
+                'SubCentral Filled Jobs': 'sum',
+                'Payroll Job Days': 'sum'
             })
             
             # Find matched column and add it
@@ -1531,7 +1535,7 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
                 borough_analysis = borough_analysis.merge(borough_matched, on='Borough', how='left')
                 
                 # Calculate borough-level match percentages
-                subcentral_col = 'SubCentral Job Days' if 'SubCentral Job Days' in matching_stats.columns else 'SubCentral_Count'
+                subcentral_col = 'SubCentral Filled Jobs'
                 borough_analysis['Match_Percentage'] = (
                     borough_analysis[matched_col] / borough_analysis[subcentral_col] * 100
                 ).round(1)
@@ -1541,14 +1545,18 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
                 
                 # Rename columns for display
                 display_column_mapping = {'Match_Percentage': '% Payroll Jobs Also in SubCentral'}
-                if 'SubCentral Job Days' in borough_analysis.columns:
-                    display_column_mapping['SubCentral Job Days'] = 'SubCentral Filled Jobs'
+                if 'SubCentral Filled Jobs' in borough_analysis.columns:
+                    display_column_mapping['SubCentral Filled Jobs'] = 'SubCentral Filled Jobs'
                 if 'Payroll Job Days' in borough_analysis.columns:
                     display_column_mapping['Payroll Job Days'] = 'Payroll Jobs'
                 if matched_col and matched_col in borough_analysis.columns:
                     display_column_mapping[matched_col] = 'Jobs Recorded in Both SubCentral and Payroll'
 
                 borough_analysis_display = borough_analysis.rename(columns=display_column_mapping)
+                
+                # Define column names for calculations
+                subcentral_col = 'SubCentral Filled Jobs' if 'SubCentral Filled Jobs' in borough_analysis.columns else 'SubCentral_Count'
+                matched_col = 'Matched Jobs' if 'Matched Jobs' in borough_analysis.columns else 'Matched_Count'
                 
                 # Calculate totals
                 total_subcentral = borough_analysis[subcentral_col].sum()

@@ -331,14 +331,14 @@ def create_matching_analysis(main_df, srepp_df):
     Create analysis comparing individual jobs between SubCentral and SREPP payroll data by location
     
     Args:
-        main_df: SubCentral data with 'Location', 'Access ID', and 'Job Start' columns (filled jobs only)
+        main_df: SubCentral data with 'Location', 'Access ID', and 'Job Start' columns
         srepp_df: SREPP payroll data with 'SCHOOL', 'EISID', and 'DATE' columns  
     
     Returns:
         pandas.DataFrame: Job-level matching analysis by location with columns:
             - Location: School location
-            - SubCentral Job Days: Total filled job days in SubCentral for this location
-            - Payroll Job Days: Total payroll records for this location
+            - SubCentral Filled Jobs: Total filled jobs in SubCentral for this location (using summary statistics method)
+            - Payroll Job Days: Total payroll records for this location (deduplicated)
             - Matched Jobs: Number of SubCentral jobs that have matching payroll records
             - Match Percentage: Percentage of payroll records that have corresponding SubCentral records
     """
@@ -353,9 +353,27 @@ def create_matching_analysis(main_df, srepp_df):
     subcentral_jobs = {}
     subcentral_totals = {}
     if not main_df.empty:
-        # Only work with filled jobs
-        filled_jobs = main_df[main_df['Fill_Status'] == 'Filled'].copy()
-        print(f"  Processing {len(filled_jobs)} filled jobs from {len(main_df)} total SubCentral records")
+        # Use the same counting method as summary statistics
+        # Create summary stats for each location to get consistent filled job counts
+        print(f"  Processing {len(main_df)} total SubCentral records using summary statistics method...")
+        
+        # Create summary stats grouped by Location to get consistent filled job counts
+        location_summaries = create_summary_stats(main_df, ['Location'])
+        
+        print(f"  Created summaries for {len(location_summaries)} locations")
+        
+        # Calculate total filled jobs per location using same method as reports
+        location_filled_totals = {}
+        for _, row in location_summaries.iterrows():
+            location = row['Location']
+            total_filled = row['Vacancy_Filled'] + row['Absence_Filled']
+            if location not in location_filled_totals:
+                location_filled_totals[location] = 0
+            location_filled_totals[location] += total_filled
+        
+        # Now get the actual filled job records for ID creation
+        filled_jobs = main_df[main_df['Type_Fill_Status'].str.endswith('_Filled', na=False)].copy()
+        print(f"  Found {len(filled_jobs)} individual filled job records")
         
         if not filled_jobs.empty:
             # Check required columns
@@ -422,14 +440,14 @@ def create_matching_analysis(main_df, srepp_df):
                                     subcentral_jobs[location] = set()
                                 subcentral_jobs[location].add(job_id)
                             
-                            # Count total jobs by location
-                            subcentral_totals = filled_jobs.groupby('Location_Clean').size().to_dict()
+                            # Use the summary statistics totals instead of raw record counts
+                            subcentral_totals = location_filled_totals
                             
                             total_subcentral_jobs = sum(subcentral_totals.values())
-                            print(f"  SubCentral: {len(subcentral_totals)} locations, {total_subcentral_jobs} total job days")
+                            print(f"  SubCentral: {len(subcentral_totals)} locations, {total_subcentral_jobs} total filled jobs (summary method)")
                             print(f"  Created {sum(len(jobs) for jobs in subcentral_jobs.values())} unique job identifiers")
                             print(f"  Sample SubCentral job IDs: {list(list(subcentral_jobs.values())[0])[:3] if subcentral_jobs else []}")
-                            print(f"  Top 5 SubCentral locations by job days: {dict(list(sorted(subcentral_totals.items(), key=lambda x: x[1], reverse=True)[:5]))}")
+                            print(f"  Top 5 SubCentral locations by filled jobs: {dict(list(sorted(subcentral_totals.items(), key=lambda x: x[1], reverse=True)[:5]))}")
                             
         else:
             print("  No filled SubCentral jobs found")
@@ -522,14 +540,28 @@ def create_matching_analysis(main_df, srepp_df):
                         # Map SREPP School_Clean to SubCentral location names
                         valid_srepp['Location'] = valid_srepp['School_Clean'].map(location_mapping)
                         
+                        # Debug: Show mapping results for QP24 specifically
+                        qp24_records = valid_srepp[valid_srepp['School_Clean'] == 'QP24']
+                        if len(qp24_records) > 0:
+                            print(f"  Debug: Found {len(qp24_records)} QP24 records in SREPP data")
+                            print(f"  Debug: QP24 mapping result: {qp24_records['Location'].iloc[0] if len(qp24_records) > 0 else 'No mapping'}")
+                        else:
+                            print(f"  Debug: No QP24 records found in SREPP data")
+                            print(f"  Debug: Available school codes sample: {valid_srepp['School_Clean'].unique()[:10]}")
+                        
                         # Filter to only records that map to SubCentral locations
                         mapped_srepp = valid_srepp[valid_srepp['Location'].notna()].copy()
                         
                         print(f"  SREPP records: {len(mapped_srepp)} mapped to SubCentral locations, {len(valid_srepp) - len(mapped_srepp)} unmapped")
                         
                         if len(mapped_srepp) > 0:
+                            # Remove duplicate Job_IDs from SREPP data (handles backdated payment corrections)
+                            print(f"  SREPP records before deduplication: {len(mapped_srepp)}")
+                            deduplicated_srepp = mapped_srepp.drop_duplicates(subset=['Job_ID']).copy()
+                            print(f"  SREPP records after deduplication: {len(deduplicated_srepp)} (removed {len(mapped_srepp) - len(deduplicated_srepp)} duplicates)")
+                            
                             # Create location mapping for SREPP job IDs (using the mapped SubCentral location names)
-                            for _, row in mapped_srepp.iterrows():
+                            for _, row in deduplicated_srepp.iterrows():
                                 location = row['Location']
                                 job_id = row['Job_ID']
                                 
@@ -537,8 +569,8 @@ def create_matching_analysis(main_df, srepp_df):
                                     srepp_jobs[location] = set()
                                 srepp_jobs[location].add(job_id)
                             
-                            # Count total SREPP records by location
-                            srepp_totals = mapped_srepp.groupby('Location').size().to_dict()
+                            # Count total SREPP records by location (using deduplicated data)
+                            srepp_totals = deduplicated_srepp.groupby('Location').size().to_dict()
                             
                             total_srepp_jobs = sum(srepp_totals.values())
                             print(f"  SREPP: {len(srepp_totals)} locations, {total_srepp_jobs} total job days")
@@ -597,7 +629,7 @@ def create_matching_analysis(main_df, srepp_df):
         
         matching_results.append({
             'Location': location,
-            'SubCentral Job Days': subcentral_days,
+            'SubCentral Filled Jobs': subcentral_days,
             'Payroll Job Days': srepp_days,
             'Matched Jobs': matched_jobs,
             'Match Percentage': coverage_rate
@@ -608,12 +640,12 @@ def create_matching_analysis(main_df, srepp_df):
     matching_df = matching_df.sort_values('Location')
     
     # Calculate summary statistics
-    total_subcentral = matching_df['SubCentral Job Days'].sum()
+    total_subcentral = matching_df['SubCentral Filled Jobs'].sum()
     total_srepp = matching_df['Payroll Job Days'].sum()
     overall_coverage = (total_matches / total_srepp * 100) if total_srepp > 0 else 0
     
     print(f"  Created matching analysis with {len(matching_df)} locations")
-    print(f"  Total SubCentral job days: {total_subcentral}")
+    print(f"  Total SubCentral filled jobs: {total_subcentral}")
     print(f"  Total payroll job days: {total_srepp}")
     print(f"  Total matched jobs: {total_matches}")
     print(f"  Overall match percentage: {overall_coverage:.1f}%")
