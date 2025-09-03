@@ -331,7 +331,7 @@ def create_matching_analysis(main_df, srepp_df):
     Create analysis comparing individual jobs between SubCentral and SREPP payroll data by location
     
     Args:
-        main_df: SubCentral data with 'Location', 'Specified Sub', and 'Job Start' columns (filled jobs only)
+        main_df: SubCentral data with 'Location', 'Access ID', and 'Job Start' columns (filled jobs only)
         srepp_df: SREPP payroll data with 'SCHOOL', 'EISID', and 'DATE' columns  
     
     Returns:
@@ -359,7 +359,7 @@ def create_matching_analysis(main_df, srepp_df):
         
         if not filled_jobs.empty:
             # Check required columns
-            required_cols = ['Location', 'Specified Sub', 'Job Start']
+            required_cols = ['Location', 'Access ID', 'Job Start']
             missing_cols = [col for col in required_cols if col not in filled_jobs.columns]
             
             if missing_cols:
@@ -383,23 +383,23 @@ def create_matching_analysis(main_df, srepp_df):
                 if len(filled_jobs) == 0:
                     print("  No SubCentral jobs with valid dates found")
                 else:
-                    # Remove jobs with NaN Specified Sub values and convert to int
-                    filled_jobs = filled_jobs[filled_jobs['Specified Sub'].notna()].copy()
-                    print(f"  SubCentral jobs after removing NaN Specified Sub: {len(filled_jobs)}")
+                    # Remove jobs with NaN Access ID values and convert to int
+                    filled_jobs = filled_jobs[filled_jobs['Access ID'].notna()].copy()
+                    print(f"  SubCentral jobs after removing NaN Access ID: {len(filled_jobs)}")
                     
                     if len(filled_jobs) == 0:
-                        print("  No SubCentral jobs with valid Specified Sub found")
+                        print("  No SubCentral jobs with valid Access ID found")
                     else:
                         # Convert Job Start to date integer (YYYYMMDD format)
                         filled_jobs['Job_Date_Int'] = filled_jobs['Job Start'].dt.strftime('%Y%m%d').astype(str)
                         
-                        # Clean and format Specified Sub (EISID) - convert to int first, then to 7-char string
-                        filled_jobs['Specified_Sub_Int'] = pd.to_numeric(filled_jobs['Specified Sub'], errors='coerce').astype('Int64')
+                        # Clean and format Access ID (EISID) - convert to int first, then to 7-char string
+                        filled_jobs['Specified_Sub_Int'] = pd.to_numeric(filled_jobs['Access ID'], errors='coerce').astype('Int64')
                         filled_jobs = filled_jobs[filled_jobs['Specified_Sub_Int'].notna()].copy()
-                        print(f"  SubCentral jobs after converting Specified Sub to int: {len(filled_jobs)}")
+                        print(f"  SubCentral jobs after converting Access ID to int: {len(filled_jobs)}")
                         
                         if len(filled_jobs) == 0:
-                            print("  No SubCentral jobs with numeric Specified Sub found")
+                            print("  No SubCentral jobs with numeric Access ID found")
                         else:
                             # Format as 7-character zero-padded string
                             filled_jobs['EISID_Clean'] = filled_jobs['Specified_Sub_Int'].astype(str).str.zfill(7)

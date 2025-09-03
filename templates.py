@@ -931,7 +931,7 @@ def get_base_javascript():
                         try {
                             $table.DataTable({
                                 paging: false, 
-                                searching: false, 
+                                searching: true, 
                                 info: false, 
                                 order: [],
                                 responsive: true,

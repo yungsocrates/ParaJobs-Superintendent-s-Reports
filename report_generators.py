@@ -13,13 +13,13 @@ from templates import (
     create_conditional_formatted_table
 )
 from chart_utils import (
-    create_bar_chart, create_pie_charts_for_data, create_overall_bar_chart, create_vacancy_absence_chart
+    create_pie_charts_for_data, create_overall_bar_chart, create_vacancy_absence_chart
 )
 from data_processing import (
     format_pct, format_int, create_summary_stats, calculate_fill_rates, get_totals_from_data, copy_logo_to_output, get_actual_job_count_for_school
 )
 
-def create_school_report(district, location, location_clean, school_data, df, summary_stats, output_dir, date_range_info, matching_stats=None):
+def create_school_report(district, location_clean, output_dir):
     """
     Create a comprehensive report for a single school
     """
@@ -34,18 +34,11 @@ def create_school_report(district, location, location_clean, school_data, df, su
     if len(safe_location_name) > 200:
         safe_location_name = safe_location_name[:200].rstrip('._')
     
-    # Create tabbed summary tables - use all required columns for school classification data
-    # For school reports, the data should be aggregated by classification
-    school_classification_data = school_data.groupby('Classification').agg({
-        'Vacancy_Filled': 'sum', 'Vacancy_Unfilled': 'sum', 'Absence_Filled': 'sum',
-        'Absence_Unfilled': 'sum', 'Total_Vacancy': 'sum', 'Total_Absence': 'sum', 'Total': 'sum'
-    }).reset_index()
-    
     # Return placeholder for now - this function needs full implementation
     return os.path.join(school_dir, f'{safe_location_name}_report.html')
 
 
-def create_superintendent_school_report(superintendent, location, location_clean, school_data, df, summary_stats, superintendent_dir, date_range_info, matching_stats=None):
+def create_superintendent_school_report(location, location_clean, school_data, df, summary_stats, superintendent_dir, date_range_info, matching_stats=None):
     """
     Create a comprehensive report for a single school under a superintendent
     """
@@ -550,8 +543,7 @@ def create_district_report(district, district_data, df, output_dir, summary_stat
         
         if len(school_summary) > 0:
             school_report = create_school_report(
-                district, location, location_clean, school_summary, 
-                df, summary_stats, output_dir, date_range_info, matching_stats
+                district, location_clean, output_dir
             )
             school_reports.append(school_report)
             
@@ -873,7 +865,7 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
                             # Create school report using the superintendent school report function
                             try:
                                 school_report = create_superintendent_school_report(
-                                    superintendent, location, location_clean, school_data, 
+                                    location, location_clean, school_data, 
                                     df, summary_stats, superintendent_dir, date_range_info, matching_stats
                                 )
                                 if school_report:

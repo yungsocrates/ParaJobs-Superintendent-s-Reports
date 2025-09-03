@@ -8,7 +8,6 @@ The heavy lifting is now done by imported modules for better maintainability.
 import os
 import sys
 import time
-import pandas as pd
 
 # Import our custom modules
 from data_processing import (
@@ -23,12 +22,8 @@ def main():
     """
     # Configuration - Updated to use multiple CSV files
     csv_files = [
-        'Fill Rate Data/mayjobs.csv',
-        'Fill Rate Data/junejobs.csv',
-        'Fill Rate Data/apriljobs.csv',
-        'Fill Rate Data/febmarchjobs.csv',
-        'Fill Rate Data/decjanjobs.csv',
-        'Fill Rate Data/sepoctnovjobs.csv',
+        'Fill Rate Data/Jan_to_May_2025_Sub_Para_Job_Final.csv',
+        'Fill Rate Data/Sept_to_Dec_and_June_Job_Final.csv',
         'SREPP1.csv',
         'SREPP2.csv',
     ]
