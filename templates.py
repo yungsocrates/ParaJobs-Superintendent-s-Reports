@@ -1249,7 +1249,27 @@ def create_district_tabbed_tables(data, formatters):
                      Absence_Filled, Absence_Unfilled, Total_Absence, Absence_Fill_Pct, 
                      Total_Filled, Total_Unfilled, Total, Overall_Fill_Pct
     """
-    from data_processing import format_pct, format_int
+    # Use provided formatters, with fallbacks
+    def safe_format_int(x):
+        if pd.isna(x) or x == '' or x == 'Unknown':
+            return str(x)
+        try:
+            return f"{int(float(x)):,}"
+        except (ValueError, TypeError):
+            return str(x)
+    
+    def safe_format_pct(x):
+        if pd.isna(x) or x == '' or x == 'Unknown':
+            return str(x)
+        try:
+            return f"{float(x):.1f}%"
+        except (ValueError, TypeError):
+            return str(x)
+    
+    # Get formatters or use defaults
+    format_int = formatters.get('Total Jobs', safe_format_int) if formatters else safe_format_int
+    format_pct = formatters.get('Fill Rate %', safe_format_pct) if formatters else safe_format_pct
+    district_formatter = formatters.get('District', lambda x: str(int(float(x))) if pd.notna(x) and x != '' else x) if formatters else lambda x: str(int(float(x))) if pd.notna(x) and x != '' else x
     
     if data is None or data.empty:
         return """
@@ -1279,7 +1299,7 @@ def create_district_tabbed_tables(data, formatters):
     
     # Build Combined Totals DataFrame - exactly like your working example
     combined_df = pd.DataFrame()
-    combined_df['District'] = df_copy['District']
+    combined_df['District'] = df_copy['District'].apply(district_formatter)
     combined_df['Total Filled'] = df_copy['Total_Filled'].apply(format_int)
     combined_df['Total Unfilled'] = df_copy['Total_Unfilled'].apply(format_int)
     combined_df['Total Jobs'] = df_copy['Total Jobs'].apply(format_int)
@@ -1287,7 +1307,7 @@ def create_district_tabbed_tables(data, formatters):
     
     # Build Details DataFrame - exactly like your working example
     details_df = pd.DataFrame()
-    details_df['District'] = df_copy['District']
+    details_df['District'] = df_copy['District'].apply(district_formatter)
     details_df['Vacancy Filled'] = df_copy['Vacancy_Filled'].apply(format_int)
     details_df['Vacancy Unfilled'] = df_copy['Vacancy_Unfilled'].apply(format_int)
     details_df['Total Vacancy'] = df_copy['Total_Vacancy'].apply(format_int)

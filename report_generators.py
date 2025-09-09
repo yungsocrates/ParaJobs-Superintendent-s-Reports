@@ -15,9 +15,33 @@ from templates import (
 from chart_utils import (
     create_pie_charts_for_data, create_overall_bar_chart, create_vacancy_absence_chart
 )
-from data_processing import (
-    format_pct, format_int, create_summary_stats, calculate_fill_rates, get_totals_from_data, copy_logo_to_output, get_actual_job_count_for_school
-)
+
+# Define formatting functions
+def format_int(x):
+    """Format integers with commas for thousands separator"""
+    if pd.isna(x) or x == '' or x == 'Unknown':
+        return str(x)
+    try:
+        return f"{int(float(x)):,}"
+    except (ValueError, TypeError):
+        return str(x)
+
+def format_pct(x):
+    """Format percentages with one decimal place"""
+    if pd.isna(x) or x == '' or x == 'Unknown':
+        return str(x)
+    try:
+        return f"{float(x):.1f}%"
+    except (ValueError, TypeError):
+        return str(x)
+
+try:
+    from data_processing import (
+        create_summary_stats, calculate_fill_rates, get_totals_from_data, copy_logo_to_output, get_actual_job_count_for_school
+    )
+except ImportError:
+    # If data_processing doesn't have these functions, we'll use the ones defined above
+    pass
 
 def create_school_report(district, location_clean, output_dir):
     """
@@ -1236,7 +1260,7 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
                 
                 # Create formatters for district analysis table (using display column names)
                 district_formatters = {
-                    'District': lambda x: f"District {int(x)}",
+                    'District': lambda x: str(int(float(x))) if pd.notna(x) and x != '' else x,
                     'SubCentral Jobs': format_int,
                     'Payroll Jobs': format_int,
                     'Jobs Recorded in Both SubCentral and Payroll': format_int,
@@ -1317,7 +1341,7 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
     
     # Create formatters for district summary
     district_formatters = {
-        'District': lambda x: f"District {int(x)}" if pd.notna(x) else x,
+        'District': lambda x: str(int(float(x))) if pd.notna(x) and x != '' else x,
         'Vacancy Filled': format_int, 'Vacancy Unfilled': format_int, 'Total Vacancy': format_int,
         'Vacancy Fill %': format_pct, 'Absence Filled': format_int, 'Absence Unfilled': format_int,
         'Total Absence': format_int, 'Absence Fill %': format_pct, 'Total Filled': format_int, 
@@ -1566,11 +1590,13 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
                 # Create formatters for borough analysis table (using display column names)
                 borough_formatters = {
                     'Borough': str,
-                    'SubCentral Jobs' if 'SubCentral Job Days' in matching_stats.columns else 'SubCentral_Count': format_int,
-                    'Payroll Jobs' if 'Payroll Job Days' in matching_stats.columns else 'Payroll_Count': format_int,
+                    'SubCentral Filled Jobs': format_int,
+                    'Payroll Jobs': format_int,
                     'Jobs Recorded in Both SubCentral and Payroll': format_int,
                     '% Payroll Jobs Also in SubCentral': format_pct
                 }
+                
+
                 
                 payroll_analysis_html = f"""
                 <div class="section">
@@ -1715,7 +1741,7 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
     district_formatters = {}
     for col in existing_district_cols:
         if col == 'District':
-            district_formatters[col] = lambda x: f"District {int(x)}" if pd.notna(x) else x
+            district_formatters[col] = lambda x: str(int(float(x))) if pd.notna(x) and x != '' else x
         elif 'Pct' in col:
             district_formatters[col] = format_pct
         elif col in ['Total', 'Vacancy_Filled', 'Vacancy_Unfilled', 'Total_Vacancy',
