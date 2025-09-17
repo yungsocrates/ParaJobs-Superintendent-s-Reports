@@ -15,6 +15,7 @@ from data_processing import (
     copy_logo_to_output, create_matching_analysis, load_superintendent_mapping, add_superintendent_info
 )
 from report_generators import create_borough_report, create_overall_summary, create_superintendent_report
+from nomination_processing import load_nomination_data
 
 def main():
     """
@@ -26,6 +27,8 @@ def main():
         'Fill Rate Data/Sept_to_Dec_and_June_Job_Final.csv',
         'SREPP1.csv',
         'SREPP2.csv',
+        'nominations.csv',
+        'cancellations.csv'
     ]
     output_directory = 'nycdoe_reports'
     
@@ -39,6 +42,8 @@ def main():
     start_time = time.time()
     print("🚀 NYC DOE Paraprofessional Fill Rate Analysis")
     print("=" * 50)
+    
+    print("Loading modules...")
     
     try:
         # Create output directory
@@ -70,6 +75,19 @@ def main():
             print(f"✓ Analysis completed for {len(matching_stats)} locations")
         else:
             print("⚠ No matching analysis available")
+        
+        # Load nomination and cancellation data
+        print("Loading nomination and cancellation data...")
+        nomination_metrics = load_nomination_data('nominations.csv', 'cancellations.csv', srepp_df, df)
+        if nomination_metrics:
+            if isinstance(nomination_metrics, dict) and 'metrics' in nomination_metrics:
+                print(f"✓ Nomination data loaded for {len(nomination_metrics['metrics'])} schools")
+                if nomination_metrics['detailed_tracking']:
+                    print(f"✓ Detailed job tracking available for {len(nomination_metrics['detailed_tracking'])} schools")
+            else:
+                print(f"✓ Nomination data loaded for {len(nomination_metrics)} schools")
+        else:
+            print("⚠ No nomination data available")
         
         # Continue with main data processing
         if df.empty:
@@ -155,7 +173,7 @@ def main():
                 
                 print(f"✓ Generating report for Superintendent {superintendent}...")
                 result = create_superintendent_report(
-                    superintendent, superintendent_data, df, output_directory, superintendent_stats, date_range_info, matching_stats, school_stats
+                    superintendent, superintendent_data, df, output_directory, superintendent_stats, date_range_info, matching_stats, school_stats, nomination_metrics
                 )
                 if result is not None:
                     report_file, school_reports = result

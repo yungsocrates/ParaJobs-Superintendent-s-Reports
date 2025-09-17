@@ -1635,3 +1635,118 @@ def create_conditional_formatted_table(df, formatters, match_col='Match Percenta
         <div class="table-responsive">{table_html}</div>
     </div>
     """
+
+def create_simple_nomination_table(df, formatters, table_id='nomination-table'):
+    """
+    Create a simple table for nomination metrics without search/sorting features
+    and with narrower columns appropriate for nomination data
+    
+    Args:
+        df (pd.DataFrame): DataFrame with nomination data
+        formatters (dict): Column formatters
+        table_id (str): HTML table ID
+    
+    Returns:
+        str: HTML table string
+    """
+    if df.empty:
+        return "<p><em>No nomination data available.</em></p>"
+    
+    # Create the table HTML with custom styling for nomination tables
+    table_html = f'<table id="{table_id}" class="table table-striped table-hover nomination-table">'
+    
+    # Create header
+    table_html += '<thead class="table-dark"><tr>'
+    for col in df.columns:
+        # Make the metric column narrower
+        width_style = 'style="width: 40%;"' if col == 'Metric' else 'style="width: 60%;"'
+        table_html += f'<th {width_style}>{col}</th>'
+    table_html += '</tr></thead>'
+    
+    # Create body
+    table_html += '<tbody>'
+    for _, row in df.iterrows():
+        table_html += '<tr>'
+        for col in df.columns:
+            value = row[col]
+            
+            # Apply formatters if available
+            if col in formatters and formatters[col]:
+                try:
+                    formatted_value = formatters[col](value)
+                except:
+                    formatted_value = str(value)
+            else:
+                formatted_value = str(value)
+            
+            # Add special styling for percentage values
+            cell_class = ''
+            if 'Percentage' in str(row.get('Metric', '')) and col == 'Value':
+                try:
+                    pct_value = float(str(formatted_value).replace('%', ''))
+                    if pct_value >= 90:
+                        cell_class = 'class="text-success fw-bold"'
+                    elif pct_value >= 75:
+                        cell_class = 'class="text-info fw-bold"'
+                    elif pct_value >= 50:
+                        cell_class = 'class="text-warning fw-bold"'
+                    else:
+                        cell_class = 'class="text-danger fw-bold"'
+                except:
+                    pass
+            
+            table_html += f'<td {cell_class}>{formatted_value}</td>'
+        table_html += '</tr>'
+    
+    table_html += '</tbody></table>'
+    
+    # Add custom CSS for nomination tables
+    table_html += """
+    <style>
+    .nomination-table {
+        font-size: 0.95em;
+        margin-bottom: 20px;
+    }
+    
+    .nomination-table th {
+        background-color: #343a40 !important;
+        color: white !important;
+        font-weight: 600;
+        text-align: center;
+        border: 1px solid #495057;
+    }
+    
+    .nomination-table td {
+        text-align: center;
+        vertical-align: middle;
+        border: 1px solid #dee2e6;
+        padding: 8px 12px;
+    }
+    
+    .nomination-table tr:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .nomination-table .fw-bold {
+        font-weight: bold;
+    }
+    
+    .nomination-table .text-success {
+        color: #198754 !important;
+    }
+    
+    .nomination-table .text-info {
+        color: #0dcaf0 !important;
+    }
+    
+    .nomination-table .text-warning {
+        color: #ffc107 !important;
+    }
+    
+    .nomination-table .text-danger {
+        color: #dc3545 !important;
+    }
+    </style>
+    """
+    
+    return table_html

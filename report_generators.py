@@ -10,11 +10,14 @@ from templates import (
     get_html_template, get_header_html, get_professional_footer,
     get_navigation_html, get_comparison_card_html, create_classification_tabbed_tables, create_school_tabbed_tables,
     create_district_tabbed_tables, create_borough_tabbed_tables,
-    create_conditional_formatted_table
+    create_conditional_formatted_table, create_simple_nomination_table
 )
 from chart_utils import (
     create_pie_charts_for_data, create_overall_bar_chart, create_vacancy_absence_chart
 )
+# from nomination_processing import get_school_nomination_summary, format_nomination_metrics
+
+# Define formatting functions
 
 # Define formatting functions
 def format_int(x):
@@ -62,7 +65,7 @@ def create_school_report(district, location_clean, output_dir):
     return os.path.join(school_dir, f'{safe_location_name}_report.html')
 
 
-def create_superintendent_school_report(location, location_clean, school_data, df, summary_stats, superintendent_dir, date_range_info, matching_stats=None):
+def create_superintendent_school_report(location, location_clean, school_data, df, summary_stats, superintendent_dir, date_range_info, matching_stats=None, nomination_metrics=None):
     """
     Create a comprehensive report for a single school under a superintendent
     """
@@ -265,6 +268,121 @@ def create_superintendent_school_report(location, location_clean, school_data, d
     
     comparison_html = f'<div class="comparison-grid-two">{"".join(comparison_cards)}</div>'
     
+    # Create nomination metrics section
+    nomination_section_html = ""
+    if nomination_metrics:
+        # Import nomination functions locally to avoid circular import
+        from nomination_processing import get_school_nomination_summary, format_nomination_metrics
+        
+        school_nomination_data = get_school_nomination_summary(location, nomination_metrics)
+        formatted_nomination_data = format_nomination_metrics(school_nomination_data)
+        
+        # Create DataFrame for consistent table formatting (same structure as payroll tables)
+        nomination_df = pd.DataFrame([{
+            'Metric': 'Total Nominations',
+            'Value': school_nomination_data['total_nominations']
+        }, {
+            'Metric': 'Nominations Completed',
+            'Value': school_nomination_data['completed_nominations']
+        }, {
+            'Metric': 'Cancelled Nominations', 
+            'Value': school_nomination_data['cancelled_nominations']
+        }, {
+            'Metric': 'Percentage of Nominations Completed',
+            'Value': school_nomination_data['percentage_completed']
+        }])
+        
+        # Create formatters (same pattern as payroll analysis)
+        nomination_formatters = {
+            'Metric': str,
+            'Value': lambda x: f"{int(x):,}" if isinstance(x, (int, float)) and x == int(x) else f"{x:.1f}%" if isinstance(x, (int, float)) and 'Percentage' in str(nomination_df[nomination_df['Value'] == x]['Metric'].iloc[0] if len(nomination_df[nomination_df['Value'] == x]) > 0 else '') else f"{int(x):,}" if isinstance(x, (int, float)) else str(x)
+        }
+        
+        # Simplified formatter approach
+        def format_nomination_value(row):
+            metric = row['Metric']
+            value = row['Value']
+            if 'Percentage' in metric:
+                return f"{value:.1f}%"
+            else:
+                return f"{int(value):,}"
+        
+        # Apply formatting
+        nomination_df['Formatted_Value'] = nomination_df.apply(format_nomination_value, axis=1)
+        
+        # Create display DataFrame
+        nomination_display = nomination_df[['Metric', 'Formatted_Value']].rename(columns={'Formatted_Value': 'Value'})
+        
+        # Use the simple nomination table function (no search/sorting, narrower columns)
+        nomination_table_html = create_simple_nomination_table(
+            nomination_display, 
+            {'Metric': str, 'Value': str}, 
+            f'school-{location_clean}-nomination-table'
+        )
+        
+        nomination_section_html = f"""
+        <div class="section">
+            <h3>Nomination Metrics</h3>
+            <p><em>This section shows the metrics for substitute paraprofessional nominations for this school.</em></p>
+            <div class="table-responsive">
+                {nomination_table_html}
+            </div>
+            <div class="nomination-notes">
+                <h4>Notes:</h4>
+                <ul>
+                    <li><strong>Completed Nominations:</strong> Nominations that have reached "Finalized on Payroll" status</li>
+                    <li><strong>Cancelled Nominations:</strong> Nominations that were cancelled during the process</li>
+                    <li><strong>Completion Rate:</strong> Percentage of total nominations that were successfully completed</li>
+                </ul>
+            </div>
+        </div>
+        """
+        
+        # Add detailed nominations table if available
+        from nomination_processing import create_nominee_details_table_html
+        nominee_details_html = create_nominee_details_table_html(location, nomination_metrics)
+        
+        nomination_section_html += f"""
+        <div class="section">
+            <h3>Nominated Individuals - Job Tracking</h3>
+            <p><em>This section shows detailed job tracking for individuals who were nominated and finalized for this school.</em></p>
+            {nominee_details_html}
+            <div class="nomination-notes">
+                <h4>Column Definitions:</h4>
+                <ul>
+                    <li><strong>Payroll Days at This Location:</strong> Number of days this person worked at this school according to payroll records</li>
+                    <li><strong>Payroll Days at Other Locations:</strong> Number of days this person worked at other schools according to payroll records</li>
+                    <li><strong>SubCentral Job Days:</strong> Total number of job postings this person was assigned in SubCentral system</li>
+                </ul>
+            </div>
+        </div>
+        
+        <style>
+        .nomination-notes {{
+            margin-top: 15px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }}
+        
+        .nomination-notes h4 {{
+            margin-bottom: 10px;
+            color: #495057;
+        }}
+        
+        .nomination-notes ul {{
+            margin: 10px 0;
+            padding-left: 20px;
+        }}
+        
+        .nomination-notes li {{
+            margin: 5px 0;
+            color: #6c757d;
+        }}
+        </style>
+        """
+    
     # Build content with new structure
     content = f"""
         {get_header_html("../../../Horizontal_logo_White_PublicSchools.png", 
@@ -273,15 +391,19 @@ def create_superintendent_school_report(location, location_clean, school_data, d
                         date_range_info)}
         
         <div class="content">
+            <!-- Navigation link commented out - can be re-enabled if needed
             {get_navigation_html([
                 (f"../../{safe_superintendent_name}_report.html", f"← Back to Schools Managed by Superintendent")
             ])}
+            -->
             
             <div class="section">
                 <h3>Comparison Statistics</h3>
                 <p><em>This comparison shows how this school performs relative to schools under the same superintendent.</em></p>
                 {comparison_html}
             </div>
+            
+            {nomination_section_html}
             
             <div class="section">
                 <h3>SubCentral Fill Rate Analysis by Classification</h3>
@@ -652,7 +774,7 @@ def create_district_report(district, district_data, df, output_dir, summary_stat
     return report_file, school_reports
 
 
-def create_superintendent_report(superintendent, superintendent_data, df, output_dir, summary_stats, date_range_info, matching_stats=None, school_stats=None):
+def create_superintendent_report(superintendent, superintendent_data, df, output_dir, summary_stats, date_range_info, matching_stats=None, school_stats=None, nomination_metrics=None):
     """
     Create a comprehensive report for a single Superintendent following the same structure as district reports
     """
@@ -890,7 +1012,7 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
                             try:
                                 school_report = create_superintendent_school_report(
                                     location, location_clean, school_data, 
-                                    df, summary_stats, superintendent_dir, date_range_info, matching_stats
+                                    df, summary_stats, superintendent_dir, date_range_info, matching_stats, nomination_metrics
                                 )
                                 if school_report:
                                     school_reports.append(school_report)
