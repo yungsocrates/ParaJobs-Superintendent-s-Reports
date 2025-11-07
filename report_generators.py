@@ -38,9 +38,13 @@ def format_pct(x):
     except (ValueError, TypeError):
         return str(x)
 
+def get_actual_job_count_for_school(df, location):
+    """Get the actual job count for a school from the dataframe"""
+    return len(df[df['Location'] == location])
+
 try:
     from data_processing import (
-        create_summary_stats, calculate_fill_rates, get_totals_from_data, copy_logo_to_output, get_actual_job_count_for_school
+        create_summary_stats, calculate_fill_rates, get_totals_from_data, copy_logo_to_output
     )
 except ImportError:
     # If data_processing doesn't have these functions, we'll use the ones defined above
@@ -1095,7 +1099,7 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
                 }
                 
                 # Calculate summary stats
-                subcentral_col = 'SubCentral Filled Jobs' if 'SubCentral Filled Jobs' in superintendent_matching.columns else 'SubCentral_Count'
+                subcentral_col = 'SubCentral Job Days' if 'SubCentral Job Days' in superintendent_matching.columns else 'SubCentral Filled Jobs'
                 payroll_col = 'Payroll Job Days' if 'Payroll Job Days' in superintendent_matching.columns else 'Payroll_Count'
                 matched_col = None
                 for col in superintendent_matching.columns:
@@ -1337,7 +1341,7 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
             
             # Aggregate by district to show district-level analysis
             district_analysis = borough_matching_with_district.groupby('District').agg({
-                'SubCentral Filled Jobs': 'sum',
+                'SubCentral Job Days': 'sum',
                 'Payroll Job Days': 'sum'
             }).reset_index()
             
@@ -1353,9 +1357,9 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
                 district_analysis = district_analysis.merge(district_matched, on='District', how='left')
                 
                 # Calculate district-level match percentages
-                subcentral_col = 'SubCentral Filled Jobs'
+                payroll_col = 'Payroll Job Days'
                 district_analysis['Match_Percentage'] = (
-                    district_analysis[matched_col] / district_analysis[subcentral_col] * 100
+                    district_analysis[matched_col] / district_analysis[payroll_col] * 100
                 ).round(1)
                 
                 # Sort by Match Percentage (lowest to highest per feedback)
@@ -1363,8 +1367,8 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
                 
                 # Rename columns for display
                 display_column_mapping = {'Match_Percentage': '% Payroll Jobs Also in SubCentral'}
-                if 'SubCentral Filled Jobs' in district_analysis.columns:
-                    display_column_mapping['SubCentral Filled Jobs'] = 'SubCentral Filled Jobs'
+                if 'SubCentral Job Days' in district_analysis.columns:
+                    display_column_mapping['SubCentral Job Days'] = 'SubCentral Filled Jobs'
                 if 'Payroll Job Days' in district_analysis.columns:
                     display_column_mapping['Payroll Job Days'] = 'Payroll Jobs'
                 if matched_col and matched_col in district_analysis.columns:
@@ -1372,7 +1376,7 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
                 district_analysis_display = district_analysis.rename(columns=display_column_mapping)
                 
                 # Define column names for calculations
-                subcentral_col = 'SubCentral Filled Jobs' if 'SubCentral Filled Jobs' in district_analysis.columns else 'SubCentral_Count'
+                subcentral_col = 'SubCentral Job Days' if 'SubCentral Job Days' in district_analysis.columns else 'SubCentral_Count'
                 matched_col = 'Matched Jobs' if 'Matched Jobs' in district_analysis.columns else 'Matched_Count'
                 
                 # Calculate totals
@@ -1383,7 +1387,7 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
                 # Create formatters for district analysis table (using display column names)
                 district_formatters = {
                     'District': lambda x: str(int(float(x))) if pd.notna(x) and x != '' else x,
-                    'SubCentral Jobs': format_int,
+                    'SubCentral Filled Jobs': format_int,
                     'Payroll Jobs': format_int,
                     'Jobs Recorded in Both SubCentral and Payroll': format_int,
                     '% Payroll Jobs Also in SubCentral': format_pct
@@ -1534,9 +1538,12 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
                 <p><em><strong>Note:</strong> A high fill rate demonstrates effective use of SubCentral which includes: recording jobs early; requesting assistance with hard to fill jobs and proactive substitute recruitment.</em></p>
                 {district_summary_html}
                 
+                <!-- Temporarily commented out - district links need to be fixed -->
+                <!--
                 <h4>Individual District Reports</h4>
                 <p><em><strong>Note:</strong> Click on district links below for detailed district-level reports. Links are ordered by district number.</em></p>
                 <div class="district-links"><ul>{district_links}</ul></div>
+                -->
             </div>
         </div>
         
@@ -1665,7 +1672,7 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
             
             # Aggregate by borough to show borough-level analysis (ensuring unique boroughs)
             borough_analysis = matching_with_borough.groupby('Borough', as_index=False).agg({
-                'SubCentral Filled Jobs': 'sum',
+                'SubCentral Job Days': 'sum',
                 'Payroll Job Days': 'sum'
             })
             
@@ -1681,9 +1688,9 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
                 borough_analysis = borough_analysis.merge(borough_matched, on='Borough', how='left')
                 
                 # Calculate borough-level match percentages
-                subcentral_col = 'SubCentral Filled Jobs'
+                payroll_col = 'Payroll Job Days'
                 borough_analysis['Match_Percentage'] = (
-                    borough_analysis[matched_col] / borough_analysis[subcentral_col] * 100
+                    borough_analysis[matched_col] / borough_analysis[payroll_col] * 100
                 ).round(1)
                 
                 # Sort by Match Percentage (lowest to highest per feedback)
@@ -1691,8 +1698,8 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
                 
                 # Rename columns for display
                 display_column_mapping = {'Match_Percentage': '% Payroll Jobs Also in SubCentral'}
-                if 'SubCentral Filled Jobs' in borough_analysis.columns:
-                    display_column_mapping['SubCentral Filled Jobs'] = 'SubCentral Filled Jobs'
+                if 'SubCentral Job Days' in borough_analysis.columns:
+                    display_column_mapping['SubCentral Job Days'] = 'SubCentral Filled Jobs'
                 if 'Payroll Job Days' in borough_analysis.columns:
                     display_column_mapping['Payroll Job Days'] = 'Payroll Jobs'
                 if matched_col and matched_col in borough_analysis.columns:
@@ -1701,7 +1708,7 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
                 borough_analysis_display = borough_analysis.rename(columns=display_column_mapping)
                 
                 # Define column names for calculations
-                subcentral_col = 'SubCentral Filled Jobs' if 'SubCentral Filled Jobs' in borough_analysis.columns else 'SubCentral_Count'
+                subcentral_col = 'SubCentral Job Days' if 'SubCentral Job Days' in borough_analysis.columns else 'SubCentral_Count'
                 matched_col = 'Matched Jobs' if 'Matched Jobs' in borough_analysis.columns else 'Matched_Count'
                 
                 # Calculate totals
@@ -1966,11 +1973,14 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
                 <div class="superintendent-links"><ul>{superintendent_links}</ul></div>
             </div>
             
+            <!-- Temporarily commented out - district links need to be fixed -->
+            <!--
             <div class="section">
                 <h4>Individual District Reports</h4>
                 <p><em><strong>Note:</strong> Click on district links below for detailed district-level reports. Links are ordered by district number.</em></p>
                 <div class="district-links"><ul>{district_links}</ul></div>
             </div>
+            -->
             
             <div class="section">
                 <h4>Individual Borough Reports</h4>

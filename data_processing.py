@@ -35,8 +35,7 @@ def load_superintendent_mapping():
         'Borough': df['Boro'],
         'Location': df['DBN'].str[2:],  # Strip first 2 characters to get location code
         'Superintendent': df['Superintendent'],
-        'School_Name': df['School Name'],
-        'Principal Name': df['Principal Name']
+        'School_Name': df['School Name']
     })
     
     # Replace district 75 with 97 as requested
@@ -69,7 +68,7 @@ def create_school_mapping_dict(mapping_df):
     
     Returns:
         dict: Dictionary with location codes as keys and school info as values
-              Format: {location: {'district': xx, 'borough': x, 'superintendent': 'Name', 'dbn': 'xxXxxx', 'principal': 'Name'}}
+              Format: {location: {'district': xx, 'borough': x, 'superintendent': 'Name', 'dbn': 'xxXxxx'}}
     """
     school_dict = {}
     
@@ -80,8 +79,7 @@ def create_school_mapping_dict(mapping_df):
             'borough': row['Borough'], 
             'superintendent': row['Superintendent'],
             'dbn': row['DBN'],
-            'school_name': row['School_Name'],
-            'principal': row.get('Principal Name', 'Principal information not available')
+            'school_name': row['School_Name']
         }
     
     return school_dict
@@ -154,13 +152,15 @@ def load_and_process_data(csv_file_paths):
     
     for csv_file_path in csv_file_paths:
         filename = os.path.basename(csv_file_path)
-        
-        if filename in ['SREPP1.csv', 'SREPP2.csv']:
+
+        if filename.startswith('SREPP'):
             print(f"Loading payroll data from: {csv_file_path}")
             # First, read the file to check available columns
             try:
                 # Try reading without specifying columns first
                 temp_df = pd.read_csv(csv_file_path, nrows=1, encoding='UTF-8', sep=',')
+                # Clean up column headers by removing leading/trailing whitespace
+                temp_df.columns = temp_df.columns.str.strip()
                 temp_df = remove_unnamed_columns(temp_df)
                 available_cols = len(temp_df.columns)
                 print(f"  Available columns in {filename}: {available_cols}")
@@ -176,6 +176,9 @@ def load_and_process_data(csv_file_paths):
                     df = pd.read_csv(csv_file_path, encoding='UTF-8', sep=',')
                     
                 print(f"  Loaded columns from {filename}: {list(df.columns)}")
+                # Clean up column headers by removing leading/trailing whitespace
+                df.columns = df.columns.str.strip()
+                print(f"  Cleaned column names: {list(df.columns)}")
                 df = remove_unnamed_columns(df)
                 df['Source_File'] = filename
                 srepp_dataframes.append(df)
@@ -308,16 +311,11 @@ def add_superintendent_info(df, mapping_df=None):
     df['Borough_From_Mapping'] = df['Location'].map(lambda x: school_info.get(x, {}).get('borough', 'Unknown'))
     df['DBN'] = df['Location'].map(lambda x: school_info.get(x, {}).get('dbn', 'Unknown'))
     df['School_Name_Full'] = df['Location'].map(lambda x: school_info.get(x, {}).get('school_name', 'Unknown'))
-    df['Principal_Name'] = df['Location'].map(lambda x: school_info.get(x, {}).get('principal', 'Principal information not available'))
     
     # Report mapping success
     mapped_count = (df['Superintendent_Name'] != 'Unknown').sum()
     total_count = len(df)
     print(f"✓ Successfully mapped {mapped_count}/{total_count} records to superintendents ({mapped_count/total_count*100:.1f}%)")
-    
-    # Report principal mapping success
-    principal_mapped_count = (df['Principal_Name'] != 'Principal information not available').sum()
-    print(f"✓ Successfully mapped {principal_mapped_count}/{total_count} records to principals ({principal_mapped_count/total_count*100:.1f}%)")
     
     # Show summary by superintendent
     if mapped_count > 0:
@@ -331,14 +329,14 @@ def create_matching_analysis(main_df, srepp_df):
     Create analysis comparing individual jobs between SubCentral and SREPP payroll data by location
     
     Args:
-        main_df: SubCentral data with 'Location', 'Access ID', and 'Job Start' columns
+        main_df: SubCentral data with 'Location', 'Access ID' (or equivalent), and 'Job Start' columns (filled jobs only)
         srepp_df: SREPP payroll data with 'SCHOOL', 'EISID', and 'DATE' columns  
     
     Returns:
         pandas.DataFrame: Job-level matching analysis by location with columns:
             - Location: School location
-            - SubCentral Filled Jobs: Total filled jobs in SubCentral for this location (using summary statistics method)
-            - Payroll Job Days: Total payroll records for this location (deduplicated)
+            - SubCentral Job Days: Total filled job days in SubCentral for this location
+            - Payroll Job Days: Total payroll records for this location
             - Matched Jobs: Number of SubCentral jobs that have matching payroll records
             - Match Percentage: Percentage of payroll records that have corresponding SubCentral records
     """
@@ -353,31 +351,31 @@ def create_matching_analysis(main_df, srepp_df):
     subcentral_jobs = {}
     subcentral_totals = {}
     if not main_df.empty:
-        # Use the same counting method as summary statistics
-        # Create summary stats for each location to get consistent filled job counts
-        print(f"  Processing {len(main_df)} total SubCentral records using summary statistics method...")
-        
-        # Create summary stats grouped by Location to get consistent filled job counts
-        location_summaries = create_summary_stats(main_df, ['Location'])
-        
-        print(f"  Created summaries for {len(location_summaries)} locations")
-        
-        # Calculate total filled jobs per location using same method as reports
-        location_filled_totals = {}
-        for _, row in location_summaries.iterrows():
-            location = row['Location']
-            total_filled = row['Vacancy_Filled'] + row['Absence_Filled']
-            if location not in location_filled_totals:
-                location_filled_totals[location] = 0
-            location_filled_totals[location] += total_filled
-        
-        # Now get the actual filled job records for ID creation
-        filled_jobs = main_df[main_df['Type_Fill_Status'].str.endswith('_Filled', na=False)].copy()
-        print(f"  Found {len(filled_jobs)} individual filled job records")
+        # Only work with filled jobs
+        filled_jobs = main_df[main_df['Fill_Status'] == 'Filled'].copy()
+        print(f"  Processing {len(filled_jobs)} filled jobs from {len(main_df)} total SubCentral records")
         
         if not filled_jobs.empty:
-            # Check required columns
-            required_cols = ['Location', 'Access ID', 'Job Start']
+            # Check required columns - try multiple possible column names for employee ID
+            required_cols = ['Location', 'Job Start']
+            emp_id_cols = ['Access ID', 'Specified Sub', 'EMPLID', 'EISID', 'EMP_ID']
+            emp_id_col = None
+            
+            # Find which employee ID column exists
+            for col in emp_id_cols:
+                if col in filled_jobs.columns:
+                    emp_id_col = col
+                    print(f"  Using '{col}' as employee ID column")
+                    break
+            
+            if emp_id_col is None:
+                print(f"  Warning: No employee ID column found in SubCentral data")
+                print(f"  Looked for: {emp_id_cols}")
+                print(f"  Available columns: {list(filled_jobs.columns)}")
+                print(f"  Cannot perform job-level matching")
+            else:
+                required_cols.append(emp_id_col)
+            
             missing_cols = [col for col in required_cols if col not in filled_jobs.columns]
             
             if missing_cols:
@@ -393,34 +391,29 @@ def create_matching_analysis(main_df, srepp_df):
                 filled_jobs = filled_jobs[filled_jobs['Job Start'].notna()].copy()
                 print(f"  SubCentral jobs with valid dates: {len(filled_jobs)}")
                 
-                # Apply same date filter as SREPP - only include dates up to 6/26 for fair comparison
-                cutoff_date = pd.to_datetime('2025-06-26')  # Same cutoff as SREPP
-                filled_jobs = filled_jobs[filled_jobs['Job Start'] <= cutoff_date].copy()
-                print(f"  SubCentral jobs after filtering to dates up to 6/26: {len(filled_jobs)}")
-                
                 if len(filled_jobs) == 0:
                     print("  No SubCentral jobs with valid dates found")
                 else:
-                    # Remove jobs with NaN Access ID values and convert to int
-                    filled_jobs = filled_jobs[filled_jobs['Access ID'].notna()].copy()
-                    print(f"  SubCentral jobs after removing NaN Access ID: {len(filled_jobs)}")
+                    # Remove jobs with NaN employee ID values and convert to int
+                    filled_jobs = filled_jobs[filled_jobs[emp_id_col].notna()].copy()
+                    print(f"  SubCentral jobs after removing NaN {emp_id_col}: {len(filled_jobs)}")
                     
                     if len(filled_jobs) == 0:
-                        print("  No SubCentral jobs with valid Access ID found")
+                        print(f"  No SubCentral jobs with valid {emp_id_col} found")
                     else:
                         # Convert Job Start to date integer (YYYYMMDD format)
                         filled_jobs['Job_Date_Int'] = filled_jobs['Job Start'].dt.strftime('%Y%m%d').astype(str)
                         
-                        # Clean and format Access ID (EISID) - convert to int first, then to 7-char string
-                        filled_jobs['Specified_Sub_Int'] = pd.to_numeric(filled_jobs['Access ID'], errors='coerce').astype('Int64')
-                        filled_jobs = filled_jobs[filled_jobs['Specified_Sub_Int'].notna()].copy()
-                        print(f"  SubCentral jobs after converting Access ID to int: {len(filled_jobs)}")
+                        # Clean and format employee ID (EISID) - convert to int first, then to 7-char string
+                        filled_jobs['EmpID_Int'] = pd.to_numeric(filled_jobs[emp_id_col], errors='coerce').astype('Int64')
+                        filled_jobs = filled_jobs[filled_jobs['EmpID_Int'].notna()].copy()
+                        print(f"  SubCentral jobs after converting {emp_id_col} to int: {len(filled_jobs)}")
                         
                         if len(filled_jobs) == 0:
-                            print("  No SubCentral jobs with numeric Access ID found")
+                            print(f"  No SubCentral jobs with numeric {emp_id_col} found")
                         else:
                             # Format as 7-character zero-padded string
-                            filled_jobs['EISID_Clean'] = filled_jobs['Specified_Sub_Int'].astype(str).str.zfill(7)
+                            filled_jobs['EISID_Clean'] = filled_jobs['EmpID_Int'].astype(str).str.zfill(7)
                             
                             # Clean Location
                             filled_jobs['Location_Clean'] = filled_jobs['Location'].astype(str).str.strip()
@@ -440,14 +433,14 @@ def create_matching_analysis(main_df, srepp_df):
                                     subcentral_jobs[location] = set()
                                 subcentral_jobs[location].add(job_id)
                             
-                            # Use the summary statistics totals instead of raw record counts
-                            subcentral_totals = location_filled_totals
+                            # Count total jobs by location
+                            subcentral_totals = filled_jobs.groupby('Location_Clean').size().to_dict()
                             
                             total_subcentral_jobs = sum(subcentral_totals.values())
-                            print(f"  SubCentral: {len(subcentral_totals)} locations, {total_subcentral_jobs} total filled jobs (summary method)")
+                            print(f"  SubCentral: {len(subcentral_totals)} locations, {total_subcentral_jobs} total job days")
                             print(f"  Created {sum(len(jobs) for jobs in subcentral_jobs.values())} unique job identifiers")
                             print(f"  Sample SubCentral job IDs: {list(list(subcentral_jobs.values())[0])[:3] if subcentral_jobs else []}")
-                            print(f"  Top 5 SubCentral locations by filled jobs: {dict(list(sorted(subcentral_totals.items(), key=lambda x: x[1], reverse=True)[:5]))}")
+                            print(f"  Top 5 SubCentral locations by job days: {dict(list(sorted(subcentral_totals.items(), key=lambda x: x[1], reverse=True)[:5]))}")
                             
         else:
             print("  No filled SubCentral jobs found")
@@ -498,23 +491,13 @@ def create_matching_analysis(main_df, srepp_df):
                     
                     # Parse dates and convert to integer format (YYYYMMDD)
                     srepp_df_copy['DATE_Clean'] = pd.to_datetime(srepp_df_copy['DATE'], errors='coerce')
+                    srepp_df_copy['Date_Int'] = srepp_df_copy['DATE_Clean'].dt.strftime('%Y%m%d').astype(str)
                     
-                    # Filter SREPP data to only include dates up to 6/26 (June 26th)
-                    # Assume current year if no year specified
-                    cutoff_date = pd.to_datetime('2025-06-26')  # Adjust year as needed
-                    
-                    # Remove records with invalid dates first
+                    # Remove records with invalid dates
                     valid_srepp = srepp_df_copy[srepp_df_copy['DATE_Clean'].notna()].copy()
                     print(f"  SREPP records with valid dates: {len(valid_srepp)}")
                     
-                    # Filter to only dates up to 6/26
-                    valid_srepp = valid_srepp[valid_srepp['DATE_Clean'] <= cutoff_date].copy()
-                    print(f"  SREPP records after filtering to dates up to 6/26: {len(valid_srepp)}")
-                    
                     if len(valid_srepp) > 0:
-                        # Convert to integer format after filtering
-                        valid_srepp['Date_Int'] = valid_srepp['DATE_Clean'].dt.strftime('%Y%m%d').astype(str)
-                        
                         # Create job identifiers: SCHOOL_CLEAN+EISID_CLEAN+DATE_INTEGER
                         valid_srepp['Job_ID'] = (
                             valid_srepp['School_Clean'] + '|' + 
@@ -540,28 +523,14 @@ def create_matching_analysis(main_df, srepp_df):
                         # Map SREPP School_Clean to SubCentral location names
                         valid_srepp['Location'] = valid_srepp['School_Clean'].map(location_mapping)
                         
-                        # Debug: Show mapping results for QP24 specifically
-                        qp24_records = valid_srepp[valid_srepp['School_Clean'] == 'QP24']
-                        if len(qp24_records) > 0:
-                            print(f"  Debug: Found {len(qp24_records)} QP24 records in SREPP data")
-                            print(f"  Debug: QP24 mapping result: {qp24_records['Location'].iloc[0] if len(qp24_records) > 0 else 'No mapping'}")
-                        else:
-                            print(f"  Debug: No QP24 records found in SREPP data")
-                            print(f"  Debug: Available school codes sample: {valid_srepp['School_Clean'].unique()[:10]}")
-                        
                         # Filter to only records that map to SubCentral locations
                         mapped_srepp = valid_srepp[valid_srepp['Location'].notna()].copy()
                         
                         print(f"  SREPP records: {len(mapped_srepp)} mapped to SubCentral locations, {len(valid_srepp) - len(mapped_srepp)} unmapped")
                         
                         if len(mapped_srepp) > 0:
-                            # Remove duplicate Job_IDs from SREPP data (handles backdated payment corrections)
-                            print(f"  SREPP records before deduplication: {len(mapped_srepp)}")
-                            deduplicated_srepp = mapped_srepp.drop_duplicates(subset=['Job_ID']).copy()
-                            print(f"  SREPP records after deduplication: {len(deduplicated_srepp)} (removed {len(mapped_srepp) - len(deduplicated_srepp)} duplicates)")
-                            
                             # Create location mapping for SREPP job IDs (using the mapped SubCentral location names)
-                            for _, row in deduplicated_srepp.iterrows():
+                            for _, row in mapped_srepp.iterrows():
                                 location = row['Location']
                                 job_id = row['Job_ID']
                                 
@@ -569,8 +538,8 @@ def create_matching_analysis(main_df, srepp_df):
                                     srepp_jobs[location] = set()
                                 srepp_jobs[location].add(job_id)
                             
-                            # Count total SREPP records by location (using deduplicated data)
-                            srepp_totals = deduplicated_srepp.groupby('Location').size().to_dict()
+                            # Count total SREPP records by location
+                            srepp_totals = mapped_srepp.groupby('Location').size().to_dict()
                             
                             total_srepp_jobs = sum(srepp_totals.values())
                             print(f"  SREPP: {len(srepp_totals)} locations, {total_srepp_jobs} total job days")
@@ -629,7 +598,7 @@ def create_matching_analysis(main_df, srepp_df):
         
         matching_results.append({
             'Location': location,
-            'SubCentral Filled Jobs': subcentral_days,
+            'SubCentral Job Days': subcentral_days,
             'Payroll Job Days': srepp_days,
             'Matched Jobs': matched_jobs,
             'Match Percentage': coverage_rate
@@ -640,12 +609,12 @@ def create_matching_analysis(main_df, srepp_df):
     matching_df = matching_df.sort_values('Location')
     
     # Calculate summary statistics
-    total_subcentral = matching_df['SubCentral Filled Jobs'].sum()
+    total_subcentral = matching_df['SubCentral Job Days'].sum()
     total_srepp = matching_df['Payroll Job Days'].sum()
     overall_coverage = (total_matches / total_srepp * 100) if total_srepp > 0 else 0
     
     print(f"  Created matching analysis with {len(matching_df)} locations")
-    print(f"  Total SubCentral filled jobs: {total_subcentral}")
+    print(f"  Total SubCentral job days: {total_subcentral}")
     print(f"  Total payroll job days: {total_srepp}")
     print(f"  Total matched jobs: {total_matches}")
     print(f"  Overall match percentage: {overall_coverage:.1f}%")
@@ -852,39 +821,15 @@ def get_totals_from_data(data):
         'Absence_Filled': int(data['Absence_Filled'].sum())
     }
 
-def get_actual_job_count_for_school(main_df, location):
+def get_actual_job_count_for_school(df, location):
     """
-    Get the actual count of ALL jobs for a specific school from the raw data
-    This counts every row in the original data for that location, regardless of type
+    Get the actual total job count for a specific school location from the dataframe
     
     Args:
-        main_df: The original DataFrame with all job records
+        df: Main dataframe with job data
         location: School location code
     
     Returns:
-        int: Total number of jobs (all types) for this school
+        int: Total number of jobs for this location
     """
-    if main_df.empty:
-        return 0
-    
-    school_jobs = main_df[main_df['Location'] == location]
-    return len(school_jobs)
-
-# Formatting functions for display
-def format_pct(value):
-    """Format a number as a percentage"""
-    if pd.isna(value) or value is None:
-        return "N/A"
-    try:
-        return f"{float(value):.1f}%"
-    except (ValueError, TypeError):
-        return str(value)
-
-def format_int(value):
-    """Format a number as an integer with commas"""
-    if pd.isna(value) or value is None:
-        return "N/A"
-    try:
-        return f"{int(float(value)):,}"
-    except (ValueError, TypeError):
-        return str(value)
+    return len(df[df['Location'] == location])
