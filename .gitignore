@@ -27,3 +27,28 @@ NYC_DOE_ParaJobs_Architecture.tex
 .vscode/
 
 # If you want to track CSVs or the tex file later, remove the corresponding lines above
+
+# School report card folders (all timestamps)
+school_report_cards*/
+school_report_card*/
+
+# PDF generation scripts and school lists
+enhanced_pdf_generator.py
+run_enhanced_reports.bat
+school_list.txt
+school_list_old.txt
+school_only_pdf_generator.py
+school_report_pdf_generator.py
+simple_school_pdf.py
+nomination_only_pdf_generator.py
+nomination_pdf.py
+nomination_school_list.txt
+test_school.txt
+test_single.txt
+vacancy_analysis.py
+unfilled_vacancy_report.pdf
+
+nomination_reports*/
+
+
+

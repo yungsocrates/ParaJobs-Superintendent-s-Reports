@@ -1,0 +1,678 @@
+\documentclass[12pt,letterpaper]{article}
+
+% Packages
+\usepackage{fontspec}
+\usepackage{geometry}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{fancyhdr}
+\usepackage{fvextra}
+\usepackage{pythontex}
+
+% Page setup
+\geometry{margin=1in}
+\setmainfont{TeX Gyre Schola}
+\setmonofont{TeX Gyre Cursor}
+
+% Break long lines in verbatim environments
+\fvset{breaklines=true,breakanywhere=true}
+
+% Colors (NYC DOE theme)
+\definecolor{nycdoeblue}{HTML}{004080}
+\definecolor{nycdoered}{HTML}{CC0000}
+\definecolor{graytext}{HTML}{666666}
+
+% Header/Footer
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{nycdoeblue}{NYC DOE School PDF Report Generator}}
+\fancyhead[R]{\small\textcolor{graytext}{Documentation}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.5pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Title configuration
+\title{\textbf{\LARGE\textcolor{nycdoeblue}{NYC DOE School Report Card Generator}}\\
+\vspace{0.5cm}
+\Large Technical Documentation \& Configuration Guide}
+\author{Human Resources School Support\\
+\textcolor{graytext}{SY 2025--26}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+\vspace{1cm}
+\begin{tcolorbox}[colback=blue!5!white,colframe=nycdoeblue,title=\textbf{Document Purpose}]
+This document provides comprehensive technical documentation for the NYC DOE School Report Card Generator system. It describes all required source files, their structure, data types, and configuration instructions for generating reports with different datasets.
+\end{tcolorbox}
+
+\newpage
+\tableofcontents
+\newpage
+
+\section{System Overview}
+
+The School PDF Report Generator creates professional PDF report cards for individual NYC DOE schools, combining data from multiple sources:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{SubCentral Job Data:} Substitute paraprofessional job postings and fill rates
+    \item \textbf{SREPP Payroll Data:} Actual payroll records showing where substitutes worked
+    \item \textbf{Nomination Data:} Schools' nominated candidates for paraprofessional positions
+    \item \textbf{Cancellation Data:} Cancelled nominations
+    \item \textbf{Preferred List Data:} Schools' preferred substitutes and do-not-use lists
+    \item \textbf{School Metadata:} School names, principals, superintendents, districts
+\end{itemize}
+
+\subsection{Key Features}
+
+\begin{itemize}[leftmargin=*]
+    \item Generates individual PDF report cards for each school
+    \item Combines SubCentral, payroll, and nomination data into comprehensive metrics
+    \item Tracks nominee employment history (days worked at nominated school vs.\ other locations)
+    \item Displays preferred substitute lists and do-not-use lists
+    \item Professional NYC DOE branding with customizable color themes
+    \item Handles missing data gracefully (generates reports even if SubCentral data unavailable)
+    \item Matches nominees across datasets using File No (EMPLID/EISID) and SSN
+\end{itemize}
+
+\section{Required Source Files}
+
+\subsection{Job Data Files (SubCentral)}
+
+\subsubsection{Job\_Inquiry\_essReport\_*.csv}
+
+\textbf{Purpose:} SubCentral job posting data showing substitute paraprofessional jobs requested by schools.
+
+\textbf{File Path:} Root directory of project (e.g., \texttt{Job\_Inquiry\_essReport\_1058.csv})
+
+\textbf{Required Columns:}
+
+\begin{longtable}{p{3.5cm}p{2.5cm}p{7cm}}
+\toprule
+\textbf{Column Name} & \textbf{Data Type} & \textbf{Description \& Values} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Column Name} & \textbf{Data Type} & \textbf{Description \& Values} \\
+\midrule
+\endhead
+Location & String & 4-character location code (e.g., \texttt{M034}, \texttt{K372}, \texttt{X221}). DBN without district prefix. \\
+\midrule
+District & Integer & District number (e.g., \texttt{1}, \texttt{2}, \texttt{75}) \\
+\midrule
+Access ID & String/Integer & Employee Access ID (7-digit) for the substitute who filled the job \\
+\midrule
+Job Type & String & Classification: \texttt{Vacancy} or \texttt{Absence} \\
+\midrule
+Status & String & Job status: \texttt{Filled}, \texttt{Unfilled}, \texttt{Cancelled}, etc. \\
+\midrule
+Job Start & Date & Job start date (YYYY-MM-DD format, may be blank) \\
+\bottomrule
+\end{longtable}
+
+\textbf{Notes:}
+\begin{itemize}[leftmargin=*]
+    \item Multiple job inquiry files can be concatenated for full school year coverage
+    \item Historical files (SY 2024--25): \texttt{Jan\_to\_May\_2025\_Sub\_Para\_Job\_Final.csv},\\
+          \texttt{Sept\_to\_Dec\_and\_June\_Job\_Final.csv}
+    \item Current files (SY 2025--26): \texttt{Job\_Inquiry\_essReport\_*.csv}
+\end{itemize}
+
+\subsection{Payroll Data Files (SREPP)}
+
+\subsubsection{Sub Para Payroll since *.csv}
+
+\textbf{Purpose:} SREPP payroll records showing where substitutes actually worked and when.
+
+\textbf{File Path:} Root directory (e.g., \texttt{Sub Para Payroll since 2025-09-02.csv})
+
+\textbf{Required Columns:}
+
+\begin{longtable}{p{3.5cm}p{2.5cm}p{7cm}}
+\toprule
+\textbf{Column Name} & \textbf{Data Type} & \textbf{Description \& Values} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Column Name} & \textbf{Data Type} & \textbf{Description \& Values} \\
+\midrule
+\endhead
+SCHOOL & String & Full school DBN (e.g., \texttt{01M034}, \texttt{02M393}, \texttt{20K205}) \\
+\midrule
+EISID & String/Integer & Employee's EIS ID / File Number (7-digit zero-padded). May contain decimals in source data (e.g., \texttt{0264341.0}) \\
+\midrule
+LNAME & String & Substitute's last name \\
+\midrule
+FNAME & String & Substitute's first name \\
+\midrule
+DATE & Date & Date of work (M/D/YYYY format, e.g., \texttt{9/19/2025}) \\
+\bottomrule
+\end{longtable}
+
+\textbf{Notes:}
+\begin{itemize}[leftmargin=*]
+    \item Column headers may have leading/trailing whitespace (automatically cleaned)
+    \item EISID may be stored as float (e.g., \texttt{0264341.0}) and must be formatted to 7-digit zero-padded string
+    \item Each row represents one day of work for one substitute at one location
+    \item Historical files: \texttt{SREPP1.csv}, \texttt{SREPP2.csv}
+    \item Current files: \texttt{Sub Para Payroll since YYYY-MM-DD.csv}
+    \item DATE format is M/D/YYYY (e.g., \texttt{9/19/2025})
+\end{itemize}
+
+\subsection{Nomination Files}
+
+\subsubsection{nominations*.csv}
+
+\textbf{Purpose:} Schools' nominated candidates for paraprofessional positions.
+
+\textbf{File Path:} Root directory (e.g., \texttt{nominations.csv}, \texttt{nominations2026.csv})
+
+\textbf{Required Columns:}
+
+\begin{longtable}{p{3.5cm}p{2.5cm}p{7cm}}
+\toprule
+\textbf{Column Name} & \textbf{Data Type} & \textbf{Description \& Values} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Column Name} & \textbf{Data Type} & \textbf{Description \& Values} \\
+\midrule
+\endhead
+Location & String & Full school DBN (e.g., \texttt{01M034}, \texttt{02M393}). May include district prefix unlike SubCentral. \\
+\midrule
+File No & String/Integer & Employee File Number (7-digit). May be stored as float (e.g., \texttt{1234567.0}) \\
+\midrule
+EMPLID & String/Integer & Alternative employee ID field (synonymous with File No) \\
+\midrule
+SSN & String & Social Security Number (for matching) \\
+\midrule
+FirstName & String & Nominee's first name \\
+\midrule
+LastName & String & Nominee's last name \\
+\midrule
+Nomination Date & Date & Date of nomination (YYYY-MM-DD format) \\
+\midrule
+Finalized on Payroll? & String & \texttt{Y} or \texttt{N}. Indicates if nomination completed. \\
+\midrule
+Position & String & Position nominated for \\
+\midrule
+Notes & String & Additional notes about nomination \\
+\bottomrule
+\end{longtable}
+
+\textbf{Notes:}
+\begin{itemize}[leftmargin=*]
+    \item File No/EMPLID must be formatted to 7-digit zero-padded string for matching
+    \item Location codes in nominations use full DBN (with district prefix) unlike SubCentral
+    \item \texttt{Finalized on Payroll?} field determines completion status
+\end{itemize}
+
+\subsubsection{cancellations*.csv}
+
+\textbf{Purpose:} Cancelled nominations.
+
+\textbf{File Path:} Root directory (e.g., \texttt{cancellations.csv}, \texttt{cancellations2026.csv})
+
+\textbf{Required Columns:}
+
+\begin{longtable}{p{3.5cm}p{2.5cm}p{7cm}}
+\toprule
+\textbf{Column Name} & \textbf{Data Type} & \textbf{Description \& Values} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Column Name} & \textbf{Data Type} & \textbf{Description \& Values} \\
+\midrule
+\endhead
+Location & String & Full school DBN (e.g., \texttt{01M034}) \\
+\midrule
+File No & String/Integer & Employee File Number (7-digit) \\
+\midrule
+FirstName & String & Nominee's first name \\
+\midrule
+LastName & String & Nominee's last name \\
+\midrule
+Cancellation Date & Date & Date cancelled (YYYY-MM-DD format) \\
+\midrule
+Reason & String & Reason for cancellation \\
+\bottomrule
+\end{longtable}
+
+\subsection{Preferred List Files}
+
+\subsubsection{preferred*.csv}
+
+\textbf{Purpose:} Schools' preferred substitute lists and do-not-use lists.
+
+\textbf{File Path:} Root directory (e.g., \texttt{preferred.csv}, \texttt{preferred2026.csv})
+
+\textbf{Required Columns:}
+
+\begin{longtable}{p{3.5cm}p{2.5cm}p{7cm}}
+\toprule
+\textbf{Column Name} & \textbf{Data Type} & \textbf{Description \& Values} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Column Name} & \textbf{Data Type} & \textbf{Description \& Values} \\
+\midrule
+\endhead
+LocationCode & String & 4-character location code (e.g., \texttt{M034}, \texttt{K372}). Last 4 characters of DBN. \\
+\midrule
+Substitutes Access ID & String/Integer & Substitute's File No/EISID (7-digit) \\
+\midrule
+Substitutes First Name & String & Substitute's first name \\
+\midrule
+Substitutes Last Name & String & Substitute's last name \\
+\midrule
+List & String & List type: \texttt{Preferred} or \texttt{Active Do Not Use} \\
+\midrule
+ReasonName & String & Reason for do-not-use listing (blank for preferred) \\
+\bottomrule
+\end{longtable}
+
+\subsection{School Metadata Files}
+
+\subsubsection{8.8.25 NYCDOE Division of School Leadership*.csv}
+
+\textbf{Purpose:} Master list of schools with superintendents, principals, and organizational structure.
+
+\textbf{File Path:} Root directory (filename starts with \texttt{8.8.25})
+
+\textbf{Required Columns:}
+
+\begin{longtable}{p{3.5cm}p{2.5cm}p{7cm}}
+\toprule
+\textbf{Column Name} & \textbf{Data Type} & \textbf{Description \& Values} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Column Name} & \textbf{Data Type} & \textbf{Description \& Values} \\
+\midrule
+\endhead
+DBN & String & Full school DBN (e.g., \texttt{01M034}, \texttt{02M393}) \\
+\midrule
+School Name & String & Official school name \\
+\midrule
+Principal Name & String & Principal's name \\
+\midrule
+Superintendent & String & Superintendent's name \\
+\midrule
+Dist & Integer & District number (e.g., \texttt{1}, \texttt{2}, \texttt{75}) \\
+\midrule
+Boro & String & Borough code: \texttt{M}, \texttt{K}, \texttt{Q}, \texttt{X}, \texttt{R} \\
+\bottomrule
+\end{longtable}
+
+\textbf{Notes:}
+\begin{itemize}[leftmargin=*]
+    \item District 75 is remapped to 97 for reporting purposes
+    \item Location code is extracted as last 4 characters of DBN
+    \item Duplicate schools are removed, keeping first occurrence
+\end{itemize}
+
+\subsubsection{school\_list.txt}
+
+\textbf{Purpose:} List of target schools for report generation.
+
+\textbf{File Path:} Root directory (\texttt{school\_list.txt})
+
+\textbf{Format:} One school DBN per line (e.g., \texttt{01M034}, \texttt{02M393}, \texttt{07X221})
+
+\textbf{Notes:}
+\begin{itemize}[leftmargin=*]
+    \item Blank lines and whitespace are ignored
+    \item School codes must match format in source data
+    \item Reports will be generated only for schools in this list
+\end{itemize}
+
+\section{Configuration Instructions}
+
+\subsection{Switching Between School Years}
+
+To generate reports for different school years, modify the \texttt{csv\_files} list in\\
+\texttt{school\_only\_pdf\_generator.py}:
+
+\begin{tcolorbox}[colback=gray!5!white,colframe=graytext,title=\textbf{Example: SY 2025--26 (Current)},breakable]
+\begin{Verbatim}[fontsize=\small]
+csv_files = [
+    'Job_Inquiry_essReport_1058.csv',
+    'Sub Para Payroll since 2025-09-02.csv',
+    'nominations2026.csv',
+    'cancellations2026.csv',
+    'preferred2026.csv'
+]
+\end{Verbatim}
+\end{tcolorbox}
+
+\begin{tcolorbox}[colback=gray!5!white,colframe=graytext,title=\textbf{Example: SY 2024--25 (Historical)},breakable]
+\begin{Verbatim}[fontsize=\small]
+csv_files = [
+    'Fill Rate Data/Jan_to_May_2025_Sub_Para_
+                    Job_Final.csv',
+    'Fill Rate Data/Sept_to_Dec_and_June_Job_
+                    Final.csv',
+    'SREPP1.csv',
+    'SREPP2.csv',
+    'nominations.csv',
+    'cancellations.csv'
+]
+\end{Verbatim}
+\end{tcolorbox}
+
+\subsection{Color Theme Configuration}
+
+\subsubsection{Current Theme: SY 2025--26 Red}
+
+\begin{tcolorbox}[colback=gray!5!white,colframe=graytext,breakable]
+\begin{Verbatim}[fontsize=\small]
+# In create_custom_styles() function:
+textColor=colors.HexColor("#CC0000")  # Red theme
+\end{Verbatim}
+\end{tcolorbox}
+
+\subsubsection{Alternative Themes}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Blue Theme (Classic):} \texttt{\#004080}
+    \item \textbf{Purple Theme:} \texttt{\#6A1B9A}
+    \item \textbf{Green Theme:} \texttt{\#2E7D32}
+\end{itemize}
+
+Change the hex color code in these locations:
+\begin{enumerate}[leftmargin=*]
+    \item \texttt{NYCTitle} style (line $\sim$95)
+    \item \texttt{NYCHeading} style (line $\sim$103)
+    \item Banner background color (line $\sim$145)
+\end{enumerate}
+
+\subsection{Date Range Configuration}
+
+To filter data by date range, modify the data loading logic:
+
+\begin{tcolorbox}[colback=gray!5!white,colframe=graytext,title=\textbf{Example: Filter Payroll Data by Date},breakable]
+\begin{Verbatim}[fontsize=\small]
+# After loading payroll_data in 
+# school_only_pdf_generator.py:
+payroll_data['Work Date'] = pd.to_datetime(
+    payroll_data['Work Date']
+)
+start_date = pd.to_datetime('2025-09-01')
+end_date = pd.to_datetime('2026-06-30')
+payroll_data = payroll_data[
+    (payroll_data['Work Date'] >= start_date) & 
+    (payroll_data['Work Date'] <= end_date)
+]
+\end{Verbatim}
+\end{tcolorbox}
+
+\subsection{Output Directory Configuration}
+
+Reports are saved to timestamped directories. To customize the output directory name:
+
+\begin{tcolorbox}[colback=gray!5!white,colframe=graytext,title=\textbf{Output Directory Example},breakable]
+\begin{Verbatim}[fontsize=\small]
+# In school_only_pdf_generator.py (line ~210):
+output_dir = f'school_report_cards_{datetime.now()
+                .strftime("%Y%m%d_%H%M")}'
+
+# Alternative: Custom directory name
+output_dir = 'SY2025_26_School_Reports'
+\end{Verbatim}
+\end{tcolorbox}
+
+\subsection{Logo Configuration}
+
+The report uses the NYC DOE logo for branding. To configure:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Logo File:} \texttt{Horizontal\_logo\_White\_PublicSchools.png}
+    \item \textbf{Location:} Root directory of project
+    \item \textbf{Usage:} Automatically loaded by \texttt{simple\_school\_pdf.py}
+    \item \textbf{To disable logo:} Set \texttt{logo\_path=None} in \texttt{create\_simple\_school\_pdf()} call
+\end{itemize}
+
+\section{Data Processing Pipeline}
+
+\subsection{Data Flow Overview}
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Load School List:} Read target schools from \texttt{school\_list.txt}
+    \item \textbf{Load SubCentral Data:} Process job inquiry files using \texttt{load\_and\_process\_data()}
+    \item \textbf{Load Payroll Data:} Read SREPP payroll files, clean column headers
+    \item \textbf{Load Nomination Data:} Process nominations and cancellations using \texttt{load\_nomination\_data()}
+    \item \textbf{Create Matching Analysis:} Match SubCentral jobs to payroll records
+    \item \textbf{Generate PDFs:} Create individual PDF for each school combining all data sources
+\end{enumerate}
+
+\subsection{Key Data Transformations}
+
+\subsubsection{Location Code Normalization}
+
+SubCentral uses 4-character location codes (\texttt{M034}), while nominations and payroll use full DBNs (\texttt{01M034}). The system handles this by:
+
+\begin{itemize}[leftmargin=*]
+    \item Using SubCentral's Location field directly (already 4-character format)
+    \item Extracting last 4 characters from full DBNs when matching to SubCentral: \texttt{school[-4:]}
+    \item Preserving full DBN for nomination/payroll matching
+\end{itemize}
+\subsubsection{File Number Formatting}
+
+File numbers (EISID/EMPLID) may be stored as floats and must be formatted consistently:
+
+\begin{tcolorbox}[colback=gray!5!white,colframe=graytext,breakable]
+\begin{Verbatim}[fontsize=\small]
+# Convert: 1234567.0 -> "1234567"
+file_no = str(int(float(raw_file_no))).zfill(7)
+\end{Verbatim}
+\end{tcolorbox}
+
+\subsubsection{Safe NaN Handling}
+
+All numeric operations use safe formatting to handle NaN/inf values:
+
+\begin{tcolorbox}[colback=gray!5!white,colframe=graytext,breakable]
+\begin{Verbatim}[fontsize=\small]
+def safe_format_eisid(x):
+    try:
+        if pd.notna(x) and str(x).strip() != '' \
+           and x != float('inf') \
+           and x != float('-inf'):
+            clean_str = str(x).replace('.0', '')
+                             .strip()
+            return str(int(float(clean_str)))
+                      .zfill(7)
+        return ''
+    except (ValueError, TypeError, OverflowError):
+        return ''
+\end{Verbatim}
+\end{tcolorbox}
+
+\section{Report Output Structure}
+
+\subsection{PDF Report Sections}
+
+Each school PDF contains:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Header Banner:} NYC DOE logo, school name, date range
+    \item \textbf{School Information:} Principal, superintendent, district
+    \item \textbf{Fill Rate Summary:} Overall statistics (vacancy/absence fill rates)
+    \item \textbf{Nomination Metrics:} Total nominations, completed, cancelled, percentage
+    \item \textbf{Nominee Details Table:} Individual nominees with:
+    \begin{itemize}
+        \item File Number, Name, Position
+        \item Completion status (Finalized on Payroll?)
+        \item Days worked at this school (from payroll matching)
+        \item Days worked at other locations (from payroll matching)
+    \end{itemize}
+    \item \textbf{Preferred Substitutes List:} School's preferred substitutes
+    \item \textbf{Do Not Use List:} Substitutes school has flagged with reasons
+\end{enumerate}
+
+\subsection{File Naming Convention}
+
+PDFs are named: \texttt{School\_Report\_<DBN>.pdf}
+
+Example: \texttt{School\_Report\_01M034.pdf}, \texttt{School\_Report\_02M393.pdf}
+
+\section{Troubleshooting \& Common Issues}
+
+\subsection{Missing SubCentral Data}
+
+\textbf{Symptom:} Warning message: \texttt{No SubCentral data found for XXX}
+
+\textbf{Cause:} School's location code not in job inquiry files
+
+\textbf{Solution:} Report will still generate with payroll and nomination data. To add SubCentral data, ensure school's location code appears in job inquiry CSV.
+
+\subsection{Payroll Matching Failures}
+
+\textbf{Symptom:} Nominees show 0 days worked despite having payroll records
+
+\textbf{Cause:} File number formatting mismatch between nominations and payroll
+
+\textbf{Solution:} 
+\begin{itemize}[leftmargin=*]
+    \item Verify File No in nominations CSV is numeric (not text)
+    \item Verify EISID in payroll CSV is 7 digits or convertible to 7 digits
+    \item Check for leading zeros in File No field
+\end{itemize}
+
+\subsection{Duplicate School Entries}
+
+\textbf{Symptom:} Multiple reports generated for same school
+
+\textbf{Cause:} Duplicate entries in school metadata CSV
+
+\textbf{Solution:} System automatically deduplicates using \texttt{drop\_duplicates(subset=['Location'], keep='first')}
+
+\subsection{Column Header Whitespace}
+
+\textbf{Symptom:} KeyError when accessing payroll columns
+
+\textbf{Cause:} Leading/trailing whitespace in CSV column headers
+
+\textbf{Solution:} System automatically cleans headers: \texttt{df.columns = df.columns.str.strip()}
+
+\section{Dependencies \& Requirements}
+
+\subsection{Python Packages}
+
+\begin{itemize}[leftmargin=*]
+    \item \texttt{pandas} -- Data processing and CSV handling
+    \item \texttt{reportlab} -- PDF generation
+    \item \texttt{numpy} -- Numerical operations
+    \item \texttt{datetime} -- Date/time handling
+\end{itemize}
+
+\subsection{System Requirements}
+
+\begin{itemize}[leftmargin=*]
+    \item Python 3.8 or higher
+    \item Windows/macOS/Linux
+    \item Minimum 4GB RAM
+    \item 500MB disk space for output
+\end{itemize}
+
+\section{Appendix: Column Reference Quick Guide}
+
+\subsection{Critical ID Fields for Matching}
+
+\begin{longtable}{p{4cm}p{4cm}p{5cm}}
+\toprule
+\textbf{Field Name} & \textbf{Source File} & \textbf{Purpose} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Field Name} & \textbf{Source File} & \textbf{Purpose} \\
+\midrule
+\endhead
+Location & SubCentral Jobs & 4-char code (e.g., \texttt{M034}) \\
+\midrule
+Location & Nominations & Full DBN (e.g., \texttt{01M034}) \\
+\midrule
+LocationCode & Preferred Lists & 4-char code (e.g., \texttt{M034}) \\
+\midrule
+SCHOOL & Payroll (SREPP) & Full DBN (e.g., \texttt{01M034}) \\
+\midrule
+DBN & School Metadata & Full DBN (e.g., \texttt{01M034}) \\
+\midrule
+File No / EMPLID & Nominations & 7-digit employee ID \\
+\midrule
+EISID & Payroll (SREPP) & 7-digit employee ID \\
+\midrule
+Substitutes Access ID & Preferred Lists & 7-digit employee ID \\
+\midrule
+SSN & Nominations/Payroll & Backup matching field \\
+\bottomrule
+\end{longtable}
+
+\subsection{Status Fields Reference}
+
+\begin{longtable}{p{5cm}p{3cm}p{5cm}}
+\toprule
+\textbf{Field Name} & \textbf{Values} & \textbf{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Field Name} & \textbf{Values} & \textbf{Meaning} \\
+\midrule
+\endhead
+Finalized on Payroll? & \texttt{Y} or \texttt{N} & Nomination completed \\
+\midrule
+List & \texttt{Preferred} or \texttt{Active Do Not Use} & Substitute list type \\
+\midrule
+Status (SubCentral) & \texttt{Filled}, \texttt{Unfilled}, etc. & Job fill status \\
+\midrule
+Job Type & \texttt{Vacancy} or \texttt{Absence} & Type of position \\
+\bottomrule
+\end{longtable}
+
+\section{Version History \& Updates}
+
+\subsection{SY 2024--25 Configuration}
+
+\begin{itemize}[leftmargin=*]
+    \item Job files: \texttt{Jan\_to\_May\_2025\_Sub\_Para\_Job\_Final.csv},\\
+          \texttt{Sept\_to\_Dec\_and\_June\_Job\_Final.csv}
+    \item Payroll files: \texttt{SREPP1.csv}, \texttt{SREPP2.csv}
+    \item Nomination files: \texttt{nominations.csv}, \texttt{cancellations.csv}
+    \item Color theme: Blue (\texttt{\#004080})
+\end{itemize}
+
+\subsection{SY 2025--26 Configuration (Current)}
+
+\begin{itemize}[leftmargin=*]
+    \item Job files: \texttt{Job\_Inquiry\_essReport\_1058.csv}
+    \item Payroll files: \texttt{Sub Para Payroll since 2025-09-02.csv}
+    \item Nomination files: \texttt{nominations2026.csv}, \texttt{cancellations2026.csv}
+    \item Preferred list: \texttt{preferred2026.csv}
+    \item Color theme: Red (\texttt{\#CC0000})
+\end{itemize}
+
+\section{Contact \& Support}
+
+For questions about this system or to request modifications:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Department:} Human Resources School Support
+    \item \textbf{Division:} Division of Human Resources
+    \item \textbf{System Owner:} HR Analytics Team
+\end{itemize}
+
+\vspace{1cm}
+\begin{center}
+\textcolor{graytext}{\rule{0.5\textwidth}{0.5pt}}\\
+\vspace{0.5cm}
+\textit{\textcolor{graytext}{End of Documentation}}
+\end{center}
+
+\end{document}

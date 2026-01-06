@@ -89,7 +89,7 @@ def create_custom_styles():
         name='NYCTitle',
         parent=styles['Heading1'],
         fontSize=18,
-        textColor=colors.HexColor('#CC0000'),
+        textColor=colors.HexColor("#CC0000"),
         alignment=TA_CENTER,
         spaceAfter=20
     ))

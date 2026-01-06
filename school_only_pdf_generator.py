@@ -97,17 +97,17 @@ def generate_school_pdfs_from_list():
         
         # Use specific CSV files as in para_fillrate_modular.py
         # Previous SY files (now consolidated/renamed):
-        # csv_files = [
-        #     'Fill Rate Data/Jan_to_May_2025_Sub_Para_Job_Final.csv',
-        #     'Fill Rate Data/Sept_to_Dec_and_June_Job_Final.csv',
-        #     'SREPP1.csv', 'SREPP2.csv' -> 'Sub Para Payroll since 2025-09-02.csv',
-        #     'nominations.csv' -> 'nominations2026.csv',
-        #     'cancellations.csv' -> 'cancellations2026.csv'
-        # ]
+        #csv_files = [
+        #    'Fill Rate Data/Jan_to_May_2025_Sub_Para_Job_Final.csv',
+        #    'Fill Rate Data/Sept_to_Dec_and_June_Job_Final.csv',
+        #    'SREPP1.csv', 'SREPP2.csv',
+        #    'nominations.csv', 
+        #    'cancellations.csv'
+        #]
         
         # Current SY 2025-26 files:
         csv_files = [
-            'SubC data for Peter\'s Bronx Princ 9 3 2025 to 10 31 2025.csv',
+            'Job_Inquiry_essReport_1058.csv',
             'Sub Para Payroll since 2025-09-02.csv',
             'nominations2026.csv',
             'cancellations2026.csv',
@@ -162,20 +162,24 @@ def generate_school_pdfs_from_list():
     
     # 2. Load payroll data first (needed for nomination processing)
     try:
-        # Load payroll data from the new consolidated file
-        payroll_file = 'Sub Para Payroll since 2025-09-02.csv'
+        # Load payroll data from SREPP files
+        payroll_files = ['Sub Para Payroll since 2025-09-02.csv']
         payroll_data = pd.DataFrame()
         
-        if os.path.exists(payroll_file):
-            payroll_data = pd.read_csv(payroll_file)
-            print(f"[DEBUG] Original columns: {list(payroll_data.columns)}")
-            # Clean up column headers by removing leading/trailing whitespace
-            payroll_data.columns = payroll_data.columns.str.strip()
-            print(f"[DEBUG] Cleaned columns: {list(payroll_data.columns)}")
-            print(f"[OK] Loaded {len(payroll_data)} payroll records from {payroll_file}")
+        for payroll_file in payroll_files:
+            if os.path.exists(payroll_file):
+                temp_df = pd.read_csv(payroll_file)
+                print(f"[DEBUG] Original columns from {payroll_file}: {list(temp_df.columns)}")
+                # Clean up column headers by removing leading/trailing whitespace
+                temp_df.columns = temp_df.columns.str.strip()
+                print(f"[DEBUG] Cleaned columns from {payroll_file}: {list(temp_df.columns)}")
+                print(f"[OK] Loaded {len(temp_df)} payroll records from {payroll_file}")
+                payroll_data = pd.concat([payroll_data, temp_df], ignore_index=True)
+            else:
+                print(f"[WARNING] Payroll file not found: {payroll_file}")
         
         if not payroll_data.empty:
-            print(f"[OK] Loaded {len(payroll_data)} payroll records")
+            print(f"[OK] Total payroll records loaded: {len(payroll_data)}")
         else:
             print("[WARNING] No payroll data found")
             
@@ -185,7 +189,7 @@ def generate_school_pdfs_from_list():
     
     # 3. Load nomination data using proper nomination processing (matching para_fillrate_modular.py)
     try:
-        nomination_data = load_nomination_data('nominations2026.csv', 'cancellations2026.csv', payroll_data, subcentral_data)
+        nomination_data = load_nomination_data('nominations.csv', 'cancellations.csv', payroll_data, subcentral_data)
         if nomination_data:
             if isinstance(nomination_data, dict) and 'metrics' in nomination_data:
                 print(f"[OK] Nomination data loaded for {len(nomination_data['metrics'])} schools")
@@ -283,8 +287,8 @@ def generate_school_pdfs_from_list():
             school_nominations = {}
             try:
                 # Read nominations directly from CSV using the proper school code
-                nominations_file = r"d:\ParaJobs Superintendent's Reports\nominations2026.csv"
-                cancellations_file = r"d:\ParaJobs Superintendent's Reports\cancellations2026.csv"
+                nominations_file = r"d:\ParaJobs Superintendent's Reports\nominations.csv"
+                cancellations_file = r"d:\ParaJobs Superintendent's Reports\cancellations.csv"
                 
                 if os.path.exists(nominations_file):
                     # Read nominations CSV and filter by Location

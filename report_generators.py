@@ -38,13 +38,9 @@ def format_pct(x):
     except (ValueError, TypeError):
         return str(x)
 
-def get_actual_job_count_for_school(df, location):
-    """Get the actual job count for a school from the dataframe"""
-    return len(df[df['Location'] == location])
-
 try:
     from data_processing import (
-        create_summary_stats, calculate_fill_rates, get_totals_from_data, copy_logo_to_output
+        create_summary_stats, calculate_fill_rates, get_totals_from_data, copy_logo_to_output, get_actual_job_count_for_school
     )
 except ImportError:
     # If data_processing doesn't have these functions, we'll use the ones defined above
@@ -164,13 +160,13 @@ def create_superintendent_school_report(location, location_clean, school_data, d
     # Get principal name from the data 
     principal_name = "Principal information not available"
     try:
-        # Use the mapped Principal_Name column
         if 'Principal_Name' in df.columns:
             principal_match = df[df['Location'] == location]['Principal_Name']
-            if not principal_match.empty and pd.notna(principal_match.iloc[0]):
+            if not principal_match.empty and pd.notna(principal_match.iloc[0]) and principal_match.iloc[0] != 'Unknown':
                 principal_name = principal_match.iloc[0]
     except Exception as e:
-        print(f"Warning: Could not retrieve principal name for {location}: {e}")
+        print(f"[ERROR] Could not retrieve principal name for {location}: {e}")
+        principal_name = "Principal information not available"
     
     safe_superintendent_name = school_superintendent.replace(',', '').replace(' ', '_').replace('.', '').replace("'", "")
     overall_totals = summary_stats.agg({

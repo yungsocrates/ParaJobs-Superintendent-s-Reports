@@ -35,6 +35,7 @@ def load_superintendent_mapping():
         'Borough': df['Boro'],
         'Location': df['DBN'].str[2:],  # Strip first 2 characters to get location code
         'Superintendent': df['Superintendent'],
+        'Principal_Name': df['Principal Name'],
         'School_Name': df['School Name']
     })
     
@@ -78,6 +79,7 @@ def create_school_mapping_dict(mapping_df):
             'district': row['District'],
             'borough': row['Borough'], 
             'superintendent': row['Superintendent'],
+            'principal_name': row['Principal_Name'],
             'dbn': row['DBN'],
             'school_name': row['School_Name']
         }
@@ -307,6 +309,7 @@ def add_superintendent_info(df, mapping_df=None):
     
     # Add superintendent information
     df['Superintendent_Name'] = df['Location'].map(lambda x: school_info.get(x, {}).get('superintendent', 'Unknown'))
+    df['Principal_Name'] = df['Location'].map(lambda x: school_info.get(x, {}).get('principal_name', 'Unknown'))
     df['District_From_Mapping'] = df['Location'].map(lambda x: school_info.get(x, {}).get('district', 'Unknown'))
     df['Borough_From_Mapping'] = df['Location'].map(lambda x: school_info.get(x, {}).get('borough', 'Unknown'))
     df['DBN'] = df['Location'].map(lambda x: school_info.get(x, {}).get('dbn', 'Unknown'))
