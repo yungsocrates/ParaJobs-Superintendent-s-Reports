@@ -135,8 +135,8 @@ def generate_school_pdfs_from_list():
             school_info = school_info.rename(columns={
                 'DBN': 'Location',
                 'School Name': 'School_Name',
-                'Principal Name': 'Principal',
-                'Superintendent': 'Superintendent'
+                'N_Principal Name': 'Principal',
+                'N_Superintendent': 'Superintendent'
             })
             
             # Add placeholder job data (will be replaced with actual data processing later)
@@ -189,7 +189,7 @@ def generate_school_pdfs_from_list():
     
     # 3. Load nomination data using proper nomination processing (matching para_fillrate_modular.py)
     try:
-        nomination_data = load_nomination_data('nominations.csv', 'cancellations.csv', payroll_data, subcentral_data)
+        nomination_data = load_nomination_data('nominations2026.csv', 'cancellations2026.csv', payroll_data, subcentral_data)
         if nomination_data:
             if isinstance(nomination_data, dict) and 'metrics' in nomination_data:
                 print(f"[OK] Nomination data loaded for {len(nomination_data['metrics'])} schools")
@@ -287,8 +287,8 @@ def generate_school_pdfs_from_list():
             school_nominations = {}
             try:
                 # Read nominations directly from CSV using the proper school code
-                nominations_file = r"d:\ParaJobs Superintendent's Reports\nominations.csv"
-                cancellations_file = r"d:\ParaJobs Superintendent's Reports\cancellations.csv"
+                nominations_file = r"d:\ParaJobs Superintendent's Reports\nominations2026.csv"
+                cancellations_file = r"d:\ParaJobs Superintendent's Reports\cancellations2026.csv"
                 
                 if os.path.exists(nominations_file):
                     # Read nominations CSV and filter by Location
@@ -633,7 +633,7 @@ def generate_school_pdfs_from_list():
             
             # Try to get school info from the main school database
             try:
-                main_data_file = '8.8.25 NYCDOE Division of School Leadership DBN Affiliation - Budget & HR - http___tinyurl.com_DSL-Budget-HR (3).csv'
+                main_data_file = '1 28 2026 NYCDOE Division of School Leadership DBN Affiliation - Budget  HR - http___tinyurl.com_DSL-Budget-HR (3).csv'
                 if main_data_file not in globals() or 'school_info_data' not in globals():
                     school_info_data = pd.read_csv(main_data_file)
                     school_info_data = school_info_data.dropna(subset=['DBN'])
@@ -641,8 +641,8 @@ def generate_school_pdfs_from_list():
                 
                 school_info_row = school_info_data[school_info_data['DBN'] == school_code]
                 if not school_info_row.empty:
-                    principal_name = school_info_row.iloc[0].get('Principal Name', '') or ""
-                    superintendent_name = school_info_row.iloc[0].get('Superintendent', '') or ""
+                    principal_name = school_info_row.iloc[0].get('N_Principal Name', '') or ""
+                    superintendent_name = school_info_row.iloc[0].get('N_Superintendent', '') or ""
                     pass  # Remove principal debug print
                     pass  # Remove superintendent debug print
             except Exception as e:

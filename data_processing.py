@@ -11,32 +11,34 @@ import glob
 
 def load_superintendent_mapping():
     """
-    Load the superintendent mapping from the CSV file starting with '8.8.25'
+    Load the superintendent mapping from the CSV file starting with '1 28 2026'
     
     Returns:
         pandas.DataFrame: DataFrame with school-to-superintendent mappings containing columns:
                          DBN, District, Borough, Location, Superintendent
     """
-    # Find the CSV file starting with '8.8.25'
-    csv_files = glob.glob("8.8.25*.csv")
-    if not csv_files:
-        raise FileNotFoundError("Could not find CSV file starting with '8.8.25'")
+    # Explicitly specify the file
+    csv_file = "1 28 2026 NYCDOE Division of School Leadership DBN Affiliation - Budget  HR - http___tinyurl.com_DSL-Budget-HR (3).csv"
     
-    csv_file = csv_files[0]  # Take the first matching file
+    if not os.path.exists(csv_file):
+        raise FileNotFoundError(f"Could not find superintendent mapping file: {csv_file}")
+    
     print(f"Loading superintendent mapping from: {csv_file}")
     
     # Load the CSV
     df = pd.read_csv(csv_file)
     
-    # Create the mapping structure
+    # Create the mapping structure - UPDATED WITH CORRECT COLUMN NAMES
     mapping_df = pd.DataFrame({
         'DBN': df['DBN'],
-        'District': df['Dist'].astype(str).str.zfill(2),  # Ensure 2-digit format
-        'Borough': df['Boro'],
+        'District': df['Dist'].astype(str).str.zfill(2),
+        'Borough': df['DBN'].str[2],  # Extract borough from DBN (3rd character)
         'Location': df['DBN'].str[2:],  # Strip first 2 characters to get location code
-        'Superintendent': df['Superintendent'],
-        'Principal_Name': df['Principal Name'],
-        'School_Name': df['School Name']
+        'Superintendent': df['N_Superintendent'].str.strip().str.title(),  # NORMALIZE: Strip whitespace and title case
+        'Superintendent_Email': df['N_Superintendent - Email'].str.strip().str.lower(),  # NORMALIZE: Strip and lowercase
+        'Principal_Name': df['N_Principal Name'].str.strip().str.title(),  # NORMALIZE: Strip whitespace and title case
+        'Principal_Email': df['N_Principal Email'].str.strip().str.lower(),  # NORMALIZE: Strip and lowercase
+        'School_Name': df['School Name'].str.strip()  # NORMALIZE: Strip whitespace
     })
     
     # Replace district 75 with 97 as requested
@@ -79,7 +81,9 @@ def create_school_mapping_dict(mapping_df):
             'district': row['District'],
             'borough': row['Borough'], 
             'superintendent': row['Superintendent'],
+            'superintendent_email': row['Superintendent_Email'],
             'principal_name': row['Principal_Name'],
+            'principal_email': row['Principal_Email'],
             'dbn': row['DBN'],
             'school_name': row['School_Name']
         }
@@ -159,28 +163,24 @@ def load_and_process_data(csv_file_paths):
             print(f"Loading payroll data from: {csv_file_path}")
             # First, read the file to check available columns
             try:
-                # Try reading without specifying columns first
-                temp_df = pd.read_csv(csv_file_path, nrows=1, encoding='UTF-8', sep=',')
-                # Clean up column headers by removing leading/trailing whitespace
-                temp_df.columns = temp_df.columns.str.strip()
-                temp_df = remove_unnamed_columns(temp_df)
-                available_cols = len(temp_df.columns)
-                print(f"  Available columns in {filename}: {available_cols}")
-                print(f"  Column names: {list(temp_df.columns)}")
+                # Read ALL columns first (Excel has 23 columns with every other one blank)
+                df = pd.read_csv(csv_file_path, encoding='UTF-8', sep=',')
+                print(f"  Total columns in {filename}: {len(df.columns)}")
+                print(f"  All column names: {list(df.columns)}")
                 
-                # Only read the columns that actually exist
-                if available_cols >= 10:
-                    # If we have enough columns, use the even-numbered ones
-                    cols_to_use = [2*i for i in range(0, min(10, available_cols//2))]
-                    df = pd.read_csv(csv_file_path, skiprows=[1], usecols=cols_to_use, encoding='UTF-8', sep=',')
-                else:
-                    # If we don't have enough columns, read all available columns
-                    df = pd.read_csv(csv_file_path, encoding='UTF-8', sep=',')
-                    
-                print(f"  Loaded columns from {filename}: {list(df.columns)}")
                 # Clean up column headers by removing leading/trailing whitespace
                 df.columns = df.columns.str.strip()
-                print(f"  Cleaned column names: {list(df.columns)}")
+                
+                # Now select only even-numbered columns (0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22...)
+                # This should include: FY, SCHOOL, EISID, LNAME, FNAME, TITLE, and DATE at position 18
+                even_col_indices = [i for i in range(len(df.columns)) if i % 2 == 0]
+                even_col_names = [df.columns[i] for i in even_col_indices]
+                print(f"  Selecting even columns (indices {even_col_indices}): {even_col_names}")
+                
+                # Keep only the even columns
+                df = df.iloc[:, even_col_indices]
+                
+                print(f"  Final columns: {list(df.columns)}")
                 df = remove_unnamed_columns(df)
                 df['Source_File'] = filename
                 srepp_dataframes.append(df)
@@ -227,27 +227,48 @@ def load_and_process_data(csv_file_paths):
     # Parse Job Start dates (handle different formats) - only for main data
     if 'Job Start' in df_to_process.columns and not df_to_process.empty:
         try:
-            # First, try to convert numeric Excel serial dates
-            numeric_mask = pd.to_numeric(df_to_process['Job Start'], errors='coerce').notna()
-            if numeric_mask.any():
-                # Convert Excel serial date to datetime for numeric values
-                df_to_process.loc[numeric_mask, 'Job Start'] = pd.to_datetime(
-                    pd.to_numeric(df_to_process.loc[numeric_mask, 'Job Start']) - 1, 
-                    unit='D', 
-                    origin='1900-01-01'
-                )
+            # Try to parse all dates as strings first (format: "12/23/2025 8:20")
+            df_to_process['Job Start'] = pd.to_datetime(
+                df_to_process['Job Start'], 
+                format='%m/%d/%Y %H:%M',
+                errors='coerce'
+            )
             
-            # Then try to parse any remaining string dates
-            string_mask = ~numeric_mask
-            if string_mask.any():
-                df_to_process.loc[string_mask, 'Job Start'] = pd.to_datetime(
-                    df_to_process.loc[string_mask, 'Job Start'], 
+            # For any dates that failed, try without time
+            failed_mask = df_to_process['Job Start'].isna()
+            if failed_mask.any():
+                df_to_process.loc[failed_mask, 'Job Start'] = pd.to_datetime(
+                    df_to_process.loc[failed_mask, 'Job Start'], 
+                    format='%m/%d/%Y',
                     errors='coerce'
                 )
+            
+            # For any still failed, try general parsing
+            still_failed = df_to_process['Job Start'].isna()
+            if still_failed.any():
+                df_to_process.loc[still_failed, 'Job Start'] = pd.to_datetime(
+                    df_to_process.loc[still_failed, 'Job Start'], 
+                    errors='coerce'
+                )
+                
         except Exception as e:
             print(f"Warning: Could not parse some Job Start dates - {e}")
             # Try a general datetime conversion as fallback
             df_to_process['Job Start'] = pd.to_datetime(df_to_process['Job Start'], errors='coerce')
+    
+    # Filter data by date range (9/2/2025 to 12/23/2025)
+    if 'Job Start' in df_to_process.columns and not df_to_process.empty:
+        start_date = pd.to_datetime('2025-09-02')
+        end_date = pd.to_datetime('2025-12-23')
+        
+        initial_count = len(df_to_process)
+        df_to_process = df_to_process[
+            (df_to_process['Job Start'] >= start_date) & 
+            (df_to_process['Job Start'] <= end_date)
+        ].copy()
+        filtered_count = len(df_to_process)
+        
+        print(f"✓ Date filtering applied: {filtered_count} records between 9/2/2025 and 12/23/2025 (filtered out {initial_count - filtered_count} records)")
     
     # Process main dataframe only (skip if empty)
     if not df_to_process.empty:
@@ -309,7 +330,9 @@ def add_superintendent_info(df, mapping_df=None):
     
     # Add superintendent information
     df['Superintendent_Name'] = df['Location'].map(lambda x: school_info.get(x, {}).get('superintendent', 'Unknown'))
+    df['Superintendent_Email'] = df['Location'].map(lambda x: school_info.get(x, {}).get('superintendent_email', 'Unknown'))
     df['Principal_Name'] = df['Location'].map(lambda x: school_info.get(x, {}).get('principal_name', 'Unknown'))
+    df['Principal_Email'] = df['Location'].map(lambda x: school_info.get(x, {}).get('principal_email', 'Unknown'))
     df['District_From_Mapping'] = df['Location'].map(lambda x: school_info.get(x, {}).get('district', 'Unknown'))
     df['Borough_From_Mapping'] = df['Location'].map(lambda x: school_info.get(x, {}).get('borough', 'Unknown'))
     df['DBN'] = df['Location'].map(lambda x: school_info.get(x, {}).get('dbn', 'Unknown'))

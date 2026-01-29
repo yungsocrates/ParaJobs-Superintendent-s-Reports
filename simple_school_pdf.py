@@ -22,13 +22,13 @@ def format_file_number(file_no):
     except (ValueError, TypeError):
         return 'N/A'
 
-def load_preferred_list_data(school_code, preferred_csv_path="preferred.csv"):
+def load_preferred_list_data(school_code, preferred_csv_path="preferred2026.csv"):
     """
     Load preferred list and DNU data for a specific school
     
     Args:
         school_code: Full school code (e.g., "01M034")
-        preferred_csv_path: Path to the preferred.csv file
+        preferred_csv_path: Path to the preferred2026.csv file
     
     Returns:
         dict: Contains 'preferred' and 'dnu' lists with substitute information
@@ -860,7 +860,7 @@ def create_simple_school_pdf(school_code, school_data, nomination_data, output_p
         
         # Load preferred list data
         preferred_data = load_preferred_list_data(school_code, 
-                                                os.path.join(os.path.dirname(__file__), "preferred.csv"))
+                                                os.path.join(os.path.dirname(__file__), "preferred2026.csv"))
         
         # Preferred List Section
         if preferred_data['preferred']:
@@ -1040,7 +1040,7 @@ def create_text_report(school_code, school_data, nomination_data, output_path,
         
         # Load preferred list data
         preferred_data = load_preferred_list_data(school_code, 
-                                                os.path.join(os.path.dirname(__file__), "preferred.csv"))
+                                                os.path.join(os.path.dirname(__file__), "preferred2026.csv"))
         
         # Preferred List Section
         f.write("\nPreferred Substitutes:\n")

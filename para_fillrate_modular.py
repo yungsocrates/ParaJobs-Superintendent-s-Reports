@@ -23,12 +23,10 @@ def main():
     """
     # Configuration - Updated to use multiple CSV files
     csv_files = [
-        'Fill Rate Data/Jan_to_May_2025_Sub_Para_Job_Final.csv',
-        'Fill Rate Data/Sept_to_Dec_and_June_Job_Final.csv',
-        'SREPP1.csv',
-        'SREPP2.csv',
-        'nominations.csv',
-        'cancellations.csv'
+        'Fill Rate Data/Job_Inquiry_essReport_Sept to December 2025.csv',
+        'SREPP1  9 1 2025 to  01 16 2026 ran on 01 16 2026.csv',
+        'nominations2026.csv',
+        'cancellations2026.csv'
     ]
     output_directory = 'nycdoe_reports'
     
@@ -78,7 +76,7 @@ def main():
         
         # Load nomination and cancellation data
         print("Loading nomination and cancellation data...")
-        nomination_metrics = load_nomination_data('nominations.csv', 'cancellations.csv', srepp_df, df)
+        nomination_metrics = load_nomination_data('nominations2026.csv', 'cancellations2026.csv', srepp_df, df)
         if nomination_metrics:
             if isinstance(nomination_metrics, dict) and 'metrics' in nomination_metrics:
                 print(f"✓ Nomination data loaded for {len(nomination_metrics['metrics'])} schools")

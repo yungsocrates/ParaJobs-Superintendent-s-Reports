@@ -236,11 +236,16 @@ def create_detailed_nomination_tracking(nominations_df, srepp_df, subcentral_df)
         print("Preprocessing SREPP data for faster lookups...")
         # Clean and index SREPP data once
         srepp_clean = srepp_df.copy()
-        srepp_clean['EISID_clean'] = srepp_clean['EISID'].astype(str).str.strip()
+        # FIXED: Convert EISID to integer string (remove decimals)
+        srepp_clean['EISID_clean'] = srepp_clean['EISID'].fillna(0).astype(int).astype(str).str.strip()
         srepp_clean['SCHOOL_clean'] = srepp_clean['SCHOOL'].astype(str).str.strip()
         
         # Also normalize SREPP school codes for matching
         srepp_clean['SCHOOL_normalized'] = srepp_clean['SCHOOL_clean'].apply(normalize_location_code)
+        
+        # FIXED: Convert DATE column to datetime for proper matching
+        if 'DATE' in srepp_clean.columns:
+            srepp_clean['DATE'] = pd.to_datetime(srepp_clean['DATE'], format='%m/%d/%Y', errors='coerce')
         
         # Debug: Show sample SREPP school codes
         sample_schools = srepp_clean['SCHOOL_clean'].unique()[:10]
@@ -250,7 +255,7 @@ def create_detailed_nomination_tracking(nominations_df, srepp_df, subcentral_df)
         
         # Group by EISID for faster lookups
         for eisid, group in srepp_clean.groupby('EISID_clean'):
-            if eisid and eisid != 'nan':
+            if eisid and eisid != 'nan' and eisid != '0':
                 srepp_lookup[eisid] = group
     
     # Pre-process SubCentral data for faster lookups  
@@ -259,12 +264,18 @@ def create_detailed_nomination_tracking(nominations_df, srepp_df, subcentral_df)
         print("Preprocessing SubCentral data for faster lookups...")
         # Clean and index SubCentral data once
         subcentral_clean = subcentral_df.copy()
-        subcentral_clean['Access_ID_clean'] = subcentral_clean['Access ID'].astype(str).str.strip()
+        # FIXED: Convert Access ID to integer string (remove decimals from float values like 869184.0)
+        subcentral_clean['Access_ID_clean'] = subcentral_clean['Access ID'].fillna(0).astype(int).astype(str).str.strip()
         
-        # Count jobs by Access ID
-        for access_id, group in subcentral_clean.groupby('Access_ID_clean'):
-            if access_id and access_id != 'nan':
-                subcentral_lookup[access_id] = len(group)
+        # FIXED: Normalize location codes in SubCentral for matching
+        subcentral_clean['Location_normalized'] = subcentral_clean['Location'].apply(normalize_location_code)
+        
+        # Count jobs by Access ID AND location
+        for (access_id, location), group in subcentral_clean.groupby(['Access_ID_clean', 'Location_normalized']):
+            if access_id and access_id != 'nan' and access_id != '0':
+                if access_id not in subcentral_lookup:
+                    subcentral_lookup[access_id] = {}
+                subcentral_lookup[access_id][location] = len(group)
     
     # Group nominations by school (normalized location)
     schools = nominations_df['Location_Normalized'].unique()
@@ -290,12 +301,17 @@ def create_detailed_nomination_tracking(nominations_df, srepp_df, subcentral_df)
         nominees_details = []
         
         for _, nominee in completed_nominations.iterrows():
-            file_no = str(nominee['File No']).strip()
+            # FIXED: Convert File No to integer string to match EISID format
+            try:
+                file_no = str(int(float(nominee['File No']))).strip()
+            except (ValueError, TypeError):
+                continue
+            
             first_name = nominee.get('FirstName', 'N/A')
             last_name = nominee.get('LastName', 'N/A')
             
             # Skip if no valid file number
-            if pd.isna(file_no) or file_no == '' or file_no == 'nan':
+            if pd.isna(file_no) or file_no == '' or file_no == 'nan' or file_no == '0':
                 continue
             
             # Calculate job days from SREPP data using pre-processed lookup
@@ -314,15 +330,18 @@ def create_detailed_nomination_tracking(nominations_df, srepp_df, subcentral_df)
                 payroll_at_other_locations = len(other_srepp)
                 
                 # Debug: Log matches for first few cases
-                if debug_matches < 3:
+                if debug_matches < 5:
                     print(f"Debug: File {file_no} at school {school}: {payroll_at_location} days here, {payroll_at_other_locations} days elsewhere")
                     if len(person_srepp) > 0:
-                        print(f"  SREPP normalized schools for this person: {list(person_srepp['SCHOOL_normalized'].unique())}")
+                        print(f"  SREPP normalized schools for this person: {list(person_srepp['SCHOOL_normalized'].unique())[:5]}")
                         print(f"  Looking for school: {school}")
                     debug_matches += 1
             
             # Calculate job days from SubCentral data using pre-processed lookup
-            subcentral_days = subcentral_lookup.get(file_no, 0)
+            subcentral_days = 0
+            if file_no in subcentral_lookup:
+                # Get total days at this specific location
+                subcentral_days = subcentral_lookup[file_no].get(school, 0)
             
             # Add to nominees details
             nominees_details.append({
@@ -337,6 +356,7 @@ def create_detailed_nomination_tracking(nominations_df, srepp_df, subcentral_df)
         if nominees_details:
             detailed_tracking[school] = nominees_details
     
+    print(f"✓ Detailed job tracking available for {len(detailed_tracking)} schools")
     return detailed_tracking
 
 def get_school_nomination_summary(school_code, nomination_data):
@@ -591,8 +611,8 @@ def create_nomination_section_html(school_code, school_metrics):
 # Test function to verify data loading
 def test_nomination_processing():
     """Test function to verify nomination data processing"""
-    nominations_file = "nominations.csv"
-    cancellations_file = "cancellations.csv"
+    nominations_file = "nominations2026.csv"
+    cancellations_file = "cancellations2026.csv"
     
     if os.path.exists(nominations_file) and os.path.exists(cancellations_file):
         school_metrics = load_nomination_data(nominations_file, cancellations_file)
