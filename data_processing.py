@@ -95,6 +95,10 @@ def remove_unnamed_columns(df):
     return df.loc[:, ~df.columns.str.contains('^Unnamed', case=False)]
 
 # === GLOBAL CONSTANTS ===
+# These will be populated dynamically after loading data
+REPORT_START_DATE = None
+REPORT_END_DATE = None
+
 DISPLAY_COLS = [
     'Classification', 'Vacancy_Filled', 'Vacancy_Unfilled', 'Total_Vacancy', 'Vacancy_Fill_Pct',
     'Absence_Filled', 'Absence_Unfilled', 'Total_Absence', 'Absence_Fill_Pct', 
@@ -237,8 +241,10 @@ def load_and_process_data(csv_file_paths):
             # For any dates that failed, try without time
             failed_mask = df_to_process['Job Start'].isna()
             if failed_mask.any():
+                # Save original values before overwriting
+                original_failed = df_to_process.loc[failed_mask, 'Job Start'].copy()
                 df_to_process.loc[failed_mask, 'Job Start'] = pd.to_datetime(
-                    df_to_process.loc[failed_mask, 'Job Start'], 
+                    original_failed, 
                     format='%m/%d/%Y',
                     errors='coerce'
                 )
@@ -246,8 +252,9 @@ def load_and_process_data(csv_file_paths):
             # For any still failed, try general parsing
             still_failed = df_to_process['Job Start'].isna()
             if still_failed.any():
+                original_still_failed = df_to_process.loc[still_failed, 'Job Start'].copy()
                 df_to_process.loc[still_failed, 'Job Start'] = pd.to_datetime(
-                    df_to_process.loc[still_failed, 'Job Start'], 
+                    original_still_failed, 
                     errors='coerce'
                 )
                 
@@ -256,19 +263,34 @@ def load_and_process_data(csv_file_paths):
             # Try a general datetime conversion as fallback
             df_to_process['Job Start'] = pd.to_datetime(df_to_process['Job Start'], errors='coerce')
     
-    # Filter data by date range (9/2/2025 to 12/23/2025)
+    # Automatically determine date range from the data
     if 'Job Start' in df_to_process.columns and not df_to_process.empty:
-        start_date = pd.to_datetime('2025-09-02')
-        end_date = pd.to_datetime('2025-12-23')
+        valid_dates = df_to_process['Job Start'].dropna()
         
-        initial_count = len(df_to_process)
-        df_to_process = df_to_process[
-            (df_to_process['Job Start'] >= start_date) & 
-            (df_to_process['Job Start'] <= end_date)
-        ].copy()
-        filtered_count = len(df_to_process)
-        
-        print(f"✓ Date filtering applied: {filtered_count} records between 9/2/2025 and 12/23/2025 (filtered out {initial_count - filtered_count} records)")
+        if len(valid_dates) > 0:
+            # Get the min and max dates from the actual data
+            auto_start_date = valid_dates.min()
+            auto_end_date = valid_dates.max()
+            
+            initial_count = len(df_to_process)
+            
+            # Filter to only include valid date range
+            df_to_process = df_to_process[
+                (df_to_process['Job Start'] >= auto_start_date) & 
+                (df_to_process['Job Start'] <= auto_end_date)
+            ].copy()
+            filtered_count = len(df_to_process)
+            
+            # Store for later use
+            global REPORT_START_DATE, REPORT_END_DATE
+            REPORT_START_DATE = auto_start_date
+            REPORT_END_DATE = auto_end_date
+            
+            # Format dates - Windows compatible
+            start_str = auto_start_date.strftime('%m/%d/%Y')
+            end_str = auto_end_date.strftime('%m/%d/%Y')
+            print(f"✓ Date range determined from data: {start_str} to {end_str}")
+            print(f"✓ Total records in date range: {filtered_count:,}")
     
     # Process main dataframe only (skip if empty)
     if not df_to_process.empty:
@@ -696,8 +718,17 @@ def get_borough_from_location(location):
 
 def get_data_date_range(df):
     """
-    Get the date range from Job Start column
+    Get the date range from Job Start column in the actual data
     """
+    global REPORT_START_DATE, REPORT_END_DATE
+    
+    # If we already calculated it, use cached values
+    if REPORT_START_DATE is not None and REPORT_END_DATE is not None:
+        start_str = REPORT_START_DATE.strftime('%B %d, %Y')
+        end_str = REPORT_END_DATE.strftime('%B %d, %Y')
+        return f"Job dates: {start_str} to {end_str}"
+    
+    # Otherwise calculate from data
     if 'Job Start' not in df.columns:
         return "Date range not available"
     
@@ -709,6 +740,10 @@ def get_data_date_range(df):
         
         min_date = valid_dates.min()
         max_date = valid_dates.max()
+        
+        # Cache for future use
+        REPORT_START_DATE = min_date
+        REPORT_END_DATE = max_date
         
         # Format dates as readable strings
         min_date_str = min_date.strftime('%B %d, %Y')
