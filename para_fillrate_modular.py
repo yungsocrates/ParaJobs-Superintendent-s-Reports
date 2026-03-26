@@ -17,6 +17,10 @@ from data_processing import (
 from report_generators import create_borough_report, create_overall_summary, create_superintendent_report
 from nomination_processing import load_nomination_data
 
+# ===== GLOBAL CONFIGURATION =====
+# DATE FILTER: Only include data up to this date (format: 'YYYY-MM-DD')
+DATE_FILTER = '2026-02-27'
+
 def main():
     """
     Main function to generate static reports
@@ -24,7 +28,8 @@ def main():
     # Configuration - Updated to use multiple CSV files
     csv_files = [
         'Fill Rate Data/Job_Inquiry_essReport_Sept to December 2025.csv',
-        'SREPP1  9 1 2025 to  01 16 2026 ran on 01 16 2026.csv',
+        'Fill Rate Data/Job_Inquiry_essReport Dec to March 2026.csv',
+        'SREPP1  9 1 2025 to  03 4 2026 ran on 03 4 2026.csv',
         'nominations2026.csv',
         'cancellations2026.csv'
     ]
@@ -52,7 +57,8 @@ def main():
         
         # Load and process data from multiple files
         print("Loading data sources...")
-        df, srepp_df = load_and_process_data(csv_files)
+        print(f"📅 Date filter: Including data through {DATE_FILTER}")
+        df, srepp_df = load_and_process_data(csv_files, date_filter=DATE_FILTER)
         
         # Handle SREPP data if present
         if not srepp_df.empty:

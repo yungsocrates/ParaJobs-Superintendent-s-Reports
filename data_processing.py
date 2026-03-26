@@ -145,12 +145,14 @@ def copy_logo_to_output(output_directory):
     else:
         print(f"Warning: Logo file {logo_source} not found")
 
-def load_and_process_data(csv_file_paths):
+def load_and_process_data(csv_file_paths, date_filter=None):
     """
     Load CSV data from multiple files and process it for dashboard display
     
     Args:
         csv_file_paths: Single CSV file path (string) or list of CSV file paths
+        date_filter: Optional date string (format: 'YYYY-MM-DD') to filter data.
+                    Only include records on or before this date.
     """
     # Handle both single file and multiple files
     if isinstance(csv_file_paths, str):
@@ -224,6 +226,21 @@ def load_and_process_data(csv_file_paths):
     # Clean column names for SREPP dataframe if it exists
     if not srepp_df.empty:
         srepp_df.columns = srepp_df.columns.str.strip()
+        
+        # Parse and filter SREPP dates if date_filter is provided
+        if date_filter is not None and 'DATE' in srepp_df.columns:
+            try:
+                # Parse SREPP DATE column
+                srepp_df['DATE'] = pd.to_datetime(srepp_df['DATE'], errors='coerce')
+                
+                # Apply date filter
+                filter_date = pd.to_datetime(date_filter)
+                initial_srepp_count = len(srepp_df)
+                srepp_df = srepp_df[srepp_df['DATE'] <= filter_date].copy()
+                filtered_srepp_count = len(srepp_df)
+                print(f"✓ SREPP date filter applied: {initial_srepp_count:,} → {filtered_srepp_count:,} records (excluded {initial_srepp_count - filtered_srepp_count:,} records after {date_filter})")
+            except Exception as e:
+                print(f"⚠ Warning: Could not apply date filter to SREPP data '{date_filter}' - {e}")
     
     # Continue processing main dataframe only (SREPP data will be returned separately)
     df_to_process = df
@@ -262,6 +279,17 @@ def load_and_process_data(csv_file_paths):
             print(f"Warning: Could not parse some Job Start dates - {e}")
             # Try a general datetime conversion as fallback
             df_to_process['Job Start'] = pd.to_datetime(df_to_process['Job Start'], errors='coerce')
+    
+    # Apply date filter if provided (BEFORE automatic date range determination)
+    if date_filter is not None and 'Job Start' in df_to_process.columns and not df_to_process.empty:
+        try:
+            filter_date = pd.to_datetime(date_filter)
+            initial_count = len(df_to_process)
+            df_to_process = df_to_process[df_to_process['Job Start'] <= filter_date].copy()
+            filtered_count = len(df_to_process)
+            print(f"✓ Date filter applied: {initial_count:,} → {filtered_count:,} records (excluded {initial_count - filtered_count:,} records after {date_filter})")
+        except Exception as e:
+            print(f"⚠ Warning: Could not apply date filter '{date_filter}' - {e}")
     
     # Automatically determine date range from the data
     if 'Job Start' in df_to_process.columns and not df_to_process.empty:
