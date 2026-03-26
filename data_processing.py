@@ -340,6 +340,24 @@ def load_and_process_data(csv_file_paths, date_filter=None):
         df_to_process['Location_Clean'] = df_to_process['Location'].str.replace(r'[<>:"/\\|?*]', '_', regex=True)
         df_to_process['Type'] = df_to_process['Type'].str.strip().str.title()
         
+        # DIAGNOSTIC: Check Type distribution before filtering
+        print("📊 Type distribution in data:")
+        type_counts = df_to_process['Type'].value_counts(dropna=False)
+        for type_val, count in type_counts.items():
+            display_name = type_val if pd.notna(type_val) and str(type_val).strip() != '' else '[BLANK/EMPTY]'
+            print(f"  {display_name}: {count:,} ({count/len(df_to_process)*100:.1f}%)")
+        
+        # Filter out blank/empty rows and keep only Vacancy and Absence
+        valid_types = ['Vacancy', 'Absence']
+        initial_count = len(df_to_process)
+        df_to_process = df_to_process[df_to_process['Type'].isin(valid_types)].copy()
+        filtered_count = len(df_to_process)
+        
+        if initial_count != filtered_count:
+            excluded = initial_count - filtered_count
+            print(f"⚠ Warning: Excluded {excluded:,} rows with blank/invalid Type (likely empty rows)")
+            print(f"✓ Proceeding with {filtered_count:,} valid Vacancy/Absence jobs")
+        
         # Define filled vs unfilled status
         filled_statuses = [
             'Finished/Admin Assigned',
