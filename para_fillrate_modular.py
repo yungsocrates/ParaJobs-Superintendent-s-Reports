@@ -19,7 +19,7 @@ from nomination_processing import load_nomination_data
 
 # ===== GLOBAL CONFIGURATION =====
 # DATE FILTER: Only include data up to this date (format: 'YYYY-MM-DD')
-DATE_FILTER = '2026-02-27'
+DATE_FILTER = '2026-03-31'
 
 def main():
     """
@@ -27,9 +27,10 @@ def main():
     """
     # Configuration - Updated to use multiple CSV files
     csv_files = [
-        'Fill Rate Data/Job_Inquiry_essReport_Sept to December 2025.csv',
-        'Fill Rate Data/Job_Inquiry_essReport Dec to March 2026.csv',
-        'SREPP1  9 1 2025 to  03 4 2026 ran on 03 4 2026.csv',
+        'Fill Rate Data/Job_Inquiry_essReport_Sept to Dec.csv',
+        'Fill Rate Data/Job_Inquiry_essReport_Jan to April.csv',
+        'SREPP P1 9 1 2025 to 4 6 2026 ran on 04 06 26.csv',
+        'SREPP P2 9 1 2025 to 4 6 2026 ran on 04 06 26.csv',
         'nominations2026.csv',
         'cancellations2026.csv'
     ]

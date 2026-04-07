@@ -327,7 +327,8 @@ def load_and_process_data(csv_file_paths, date_filter=None):
         df_to_process['Classification'] = df_to_process['Classification'].str.replace(r'\s+', ' ', regex=True)
         
         # Clean up gender-specific classifications
-        df_to_process['Classification'] = df_to_process['Classification'].apply(clean_classification_gender)
+        # COMMENTED OUT: Keep gender stratification (FEMALE PARA, MALE PARA) in the data
+        # df_to_process['Classification'] = df_to_process['Classification'].apply(clean_classification_gender)
         
         # Create District code (ensure it's an integer and remove rows with NaN districts)
         df_to_process = df_to_process.dropna(subset=['District'])  # Remove rows where District is NaN
