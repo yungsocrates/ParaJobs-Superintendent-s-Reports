@@ -19,7 +19,7 @@ from nomination_processing import load_nomination_data
 
 # ===== GLOBAL CONFIGURATION =====
 # DATE FILTER: Only include data up to this date (format: 'YYYY-MM-DD')
-DATE_FILTER = '2026-03-31'
+DATE_FILTER = '2026-04-01'
 
 def main():
     """
