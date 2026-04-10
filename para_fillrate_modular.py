@@ -19,7 +19,7 @@ from nomination_processing import load_nomination_data
 
 # ===== GLOBAL CONFIGURATION =====
 # DATE FILTER: Only include data up to this date (format: 'YYYY-MM-DD')
-DATE_FILTER = '2026-04-01'
+DATE_FILTER = '2026-03-31'
 
 def main():
     """
@@ -35,7 +35,7 @@ def main():
         'cancellations2026.csv'
     ]
     output_directory = 'nycdoe_reports'
-    
+
     # Check for force regeneration flag
     force_regenerate = '--force' in sys.argv or '-f' in sys.argv
     if force_regenerate:

@@ -227,6 +227,30 @@ def load_and_process_data(csv_file_paths, date_filter=None):
     if not srepp_df.empty:
         srepp_df.columns = srepp_df.columns.str.strip()
         
+        # Deduplicate SREPP records by EISID + SCHOOL + DATE to avoid counting payment corrections multiple times
+        required_cols = ['EISID', 'SCHOOL', 'DATE']
+        if all(col in srepp_df.columns for col in required_cols):
+            try:
+                initial_srepp_count = len(srepp_df)
+                # Create unique ID from EISID + SCHOOL + DATE
+                srepp_df['Unique_ID'] = (
+                    srepp_df['EISID'].astype(str) + '|' + 
+                    srepp_df['SCHOOL'].astype(str) + '|' + 
+                    srepp_df['DATE'].astype(str)
+                )
+                # Keep only the first occurrence of each unique ID
+                srepp_df = srepp_df.drop_duplicates(subset=['Unique_ID'], keep='first').copy()
+                # Remove the temporary Unique_ID column
+                srepp_df = srepp_df.drop(columns=['Unique_ID'])
+                deduplicated_count = len(srepp_df)
+                duplicates_removed = initial_srepp_count - deduplicated_count
+                print(f"✓ SREPP deduplication applied (EISID+SCHOOL+DATE): {initial_srepp_count:,} → {deduplicated_count:,} records (removed {duplicates_removed:,} duplicates)")
+            except Exception as e:
+                print(f"⚠ Warning: Could not deduplicate SREPP data - {e}")
+        else:
+            missing = [col for col in required_cols if col not in srepp_df.columns]
+            print(f"⚠ Warning: Cannot deduplicate SREPP - missing columns: {missing}")
+        
         # Parse and filter SREPP dates if date_filter is provided
         if date_filter is not None and 'DATE' in srepp_df.columns:
             try:
@@ -281,9 +305,11 @@ def load_and_process_data(csv_file_paths, date_filter=None):
             df_to_process['Job Start'] = pd.to_datetime(df_to_process['Job Start'], errors='coerce')
     
     # Apply date filter if provided (BEFORE automatic date range determination)
+    applied_filter_date = None
     if date_filter is not None and 'Job Start' in df_to_process.columns and not df_to_process.empty:
         try:
             filter_date = pd.to_datetime(date_filter)
+            applied_filter_date = filter_date
             initial_count = len(df_to_process)
             df_to_process = df_to_process[df_to_process['Job Start'] <= filter_date].copy()
             filtered_count = len(df_to_process)
@@ -296,9 +322,14 @@ def load_and_process_data(csv_file_paths, date_filter=None):
         valid_dates = df_to_process['Job Start'].dropna()
         
         if len(valid_dates) > 0:
-            # Get the min and max dates from the actual data
+            # Get the min date from actual data
             auto_start_date = valid_dates.min()
-            auto_end_date = valid_dates.max()
+            # If a filter was applied, use that as the end date (inclusive)
+            # Otherwise use the max date from the data
+            if applied_filter_date is not None:
+                auto_end_date = applied_filter_date
+            else:
+                auto_end_date = valid_dates.max()
             
             initial_count = len(df_to_process)
             
