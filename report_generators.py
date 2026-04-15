@@ -266,7 +266,7 @@ def create_superintendent_school_report(location, location_clean, school_data, d
     }
     comparison_cards.append(get_comparison_card_html(f"This School ({location})", school_stats, "school"))
     
-    comparison_html = f'<div class="comparison-grid-two">{"".join(comparison_cards)}</div>'
+    comparison_html = f'<div class="comparison-grid-two">{"".join(reversed(comparison_cards))}</div>'
     
     # Create nomination metrics section
     nomination_section_html = ""
@@ -278,12 +278,17 @@ def create_superintendent_school_report(location, location_clean, school_data, d
         formatted_nomination_data = format_nomination_metrics(school_nomination_data)
         
         # Create DataFrame for consistent table formatting (same structure as payroll tables)
+        in_progress = school_nomination_data.get('in_progress_nominations',
+            school_nomination_data['total_nominations'] - school_nomination_data['completed_nominations'] - school_nomination_data['cancelled_nominations'])
         nomination_df = pd.DataFrame([{
             'Metric': 'Total Nominations',
             'Value': school_nomination_data['total_nominations']
         }, {
             'Metric': 'Nominations Completed',
             'Value': school_nomination_data['completed_nominations']
+        }, {
+            'Metric': 'In Progress Nominations',
+            'Value': in_progress
         }, {
             'Metric': 'Cancelled Nominations', 
             'Value': school_nomination_data['cancelled_nominations']
@@ -888,7 +893,7 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
     }
     comparison_cards.append(get_comparison_card_html(f"Superintendent {superintendent}", superintendent_stats, "superintendent"))
     
-    comparison_html = f'<div class="comparison-grid">{"".join(comparison_cards)}</div>'
+    comparison_html = f'<div class="comparison-grid">{"".join(reversed(comparison_cards))}</div>'
     
     # Create classification analysis table
     # Create formatters for all the columns
@@ -967,13 +972,23 @@ def create_superintendent_report(superintendent, superintendent_data, df, output
                 school_aggregated_for_display['Total'].replace(0, 1) * 100
             ).round(1)
             
+            # Compute average jobs per day per school from raw SubCentral data
+            if 'Job Start' in df.columns:
+                unique_days_per_school = df.groupby('Location')['Job Start'].apply(
+                    lambda x: x.dt.normalize().nunique()
+                )
+                total_per_school = school_aggregated_for_display.set_index('Location')['Total']
+                avg_per_day = (total_per_school / unique_days_per_school.reindex(total_per_school.index, fill_value=1)).round(1).fillna(0)
+                school_aggregated_for_display['Avg Jobs Per Day'] = school_aggregated_for_display['Location'].map(avg_per_day)
+            
             # Define school-specific formatters
             school_formatters = {
                 'School': str,
                 'Vacancy_Filled': format_int, 'Vacancy_Unfilled': format_int, 'Total_Vacancy': format_int,
                 'Vacancy_Fill_Pct': format_pct, 'Absence_Filled': format_int, 'Absence_Unfilled': format_int,
                 'Total_Absence': format_int, 'Absence_Fill_Pct': format_pct, 'Total_Filled': format_int, 
-                'Total_Unfilled': format_int, 'Total Jobs': format_int, 'Fill Rate %': format_pct
+                'Total_Unfilled': format_int, 'Total Jobs': format_int, 'Fill Rate %': format_pct,
+                'Avg Jobs Per Day': lambda x: f"{float(x):.1f}" if pd.notna(x) else '0.0'
             }
             
             summary_by_school_html = create_school_tabbed_tables(
@@ -1318,7 +1333,7 @@ def create_borough_report(borough, borough_data, df, output_dir, district_stats,
     }
     comparison_cards.append(get_comparison_card_html(f"This Borough", borough_stats, "borough"))
     
-    comparison_html = f'<div class="comparison-grid">{"".join(comparison_cards)}</div>'
+    comparison_html = f'<div class="comparison-grid">{"".join(reversed(comparison_cards))}</div>'
     
     # === SECTION 2: MATCH PAYROLL ANALYSIS (for districts in this borough) ===
     payroll_analysis_html = ""

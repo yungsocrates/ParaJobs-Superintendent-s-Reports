@@ -132,7 +132,7 @@ def create_nominee_details_table_html(school_code, nomination_data):
                     <th>File No / EISID</th>
                     <th>Payroll Days<br/>at This Location</th>
                     <th>Payroll Days<br/>at Other Locations</th>
-                    <th>SubCentral<br/>Job Days</th>
+                    <th>SubCentral Job Days<br/>(At This Location)</th>
                 </tr>
             </thead>
             <tbody>
@@ -149,12 +149,15 @@ def create_nominee_details_table_html(school_code, nomination_data):
             # If conversion fails, use original value
             file_no_formatted = str(file_no)
         
+        # Highlight Payroll Days at This Location when it is 0
+        payroll_at_loc_style = ' style="background-color: #fff3cd; color: #856404; font-weight: bold;"' if nominee['payroll_days_at_location'] == 0 else ''
+        
         table_html += f"""
                 <tr>
                     <td>{nominee['first_name']}</td>
                     <td>{nominee['last_name']}</td>
                     <td>{file_no_formatted}</td>
-                    <td class="text-center">{nominee['payroll_days_at_location']}</td>
+                    <td class="text-center"{payroll_at_loc_style}>{nominee['payroll_days_at_location']}</td>
                     <td class="text-center">{nominee['payroll_days_other_locations']}</td>
                     <td class="text-center">{nominee['subcentral_days']}</td>
                 </tr>
@@ -201,8 +204,12 @@ def calculate_school_nomination_metrics(nominations_df, cancellations_df):
         # Cancelled nominations: count from cancellations file
         cancelled_nominations = len(school_cancellations)
         
-        # Total nominations = Completed + Cancelled
-        total_nominations = completed_nominations + cancelled_nominations
+        # Total nominations = all nominations in nominations file + cancelled
+        # (nominations file contains completed + in-progress; cancellations file is separate)
+        total_nominations = len(school_nominations) + cancelled_nominations
+        
+        # In Progress = nominations not yet finalized and not cancelled
+        in_progress_nominations = len(school_nominations) - completed_nominations
         
         # Percentage completed = Completed / Total Nominations
         percentage_completed = (completed_nominations / total_nominations * 100) if total_nominations > 0 else 0
@@ -210,6 +217,7 @@ def calculate_school_nomination_metrics(nominations_df, cancellations_df):
         school_metrics[school] = {
             'total_nominations': total_nominations,
             'completed_nominations': completed_nominations,
+            'in_progress_nominations': in_progress_nominations,
             'cancelled_nominations': cancelled_nominations,
             'percentage_completed': percentage_completed
         }
@@ -382,6 +390,7 @@ def get_school_nomination_summary(school_code, nomination_data):
         return {
             'total_nominations': 0,
             'completed_nominations': 0,
+            'in_progress_nominations': 0,
             'cancelled_nominations': 0,
             'percentage_completed': 0
         }
@@ -436,11 +445,14 @@ def format_nomination_metrics(metrics):
     Returns:
         dict: Formatted metrics
     """
+    in_progress = metrics.get('in_progress_nominations',
+        metrics['total_nominations'] - metrics['completed_nominations'] - metrics['cancelled_nominations'])
     return {
         'Total Nominations': f"{metrics['total_nominations']:,}",
         'Nominations Completed': f"{metrics['completed_nominations']:,}",
-        'Percentage of Nominations Completed': f"{metrics['percentage_completed']:.1f}%",
-        'Cancelled Nominations': f"{metrics['cancelled_nominations']:,}"
+        'In Progress Nominations': f"{in_progress:,}",
+        'Cancelled Nominations': f"{metrics['cancelled_nominations']:,}",
+        'Percentage of Nominations Completed': f"{metrics['percentage_completed']:.1f}%"
     }
 
 def create_nomination_section_html(school_code, school_metrics):

@@ -1215,6 +1215,38 @@ def create_classification_tabbed_tables(data, formatters, debug_district=False):
     details_df['Total Absence'] = df_copy['Total_Absence'].apply(formatters.get('Total_Absence', format_int))
     details_df['Absence Fill %'] = df_copy['Absence_Fill_Pct'].apply(formatters.get('Absence_Fill_Pct', format_pct))
     
+    # Add TOTALS row at the bottom of both tables
+    t_total = df_copy['Total'].sum()
+    t_filled = df_copy['Total_Filled'].sum()
+    t_unfilled = df_copy['Total_Unfilled'].sum()
+    t_fill_pct = t_filled / t_total * 100 if t_total > 0 else 0
+    t_vac = df_copy['Total_Vacancy'].sum()
+    t_vac_filled = df_copy['Vacancy_Filled'].sum()
+    t_vac_unfilled = df_copy['Vacancy_Unfilled'].sum()
+    t_vac_pct = t_vac_filled / t_vac * 100 if t_vac > 0 else 0
+    t_abs = df_copy['Total_Absence'].sum()
+    t_abs_filled = df_copy['Absence_Filled'].sum()
+    t_abs_unfilled = df_copy['Absence_Unfilled'].sum()
+    t_abs_pct = t_abs_filled / t_abs * 100 if t_abs > 0 else 0
+    combined_df = pd.concat([combined_df, pd.DataFrame([{
+        'Classification': '<strong>TOTAL</strong>',
+        'Total Filled': f'<strong>{format_int(t_filled)}</strong>',
+        'Total Unfilled': f'<strong>{format_int(t_unfilled)}</strong>',
+        'Total Jobs': f'<strong>{format_int(t_total)}</strong>',
+        'Fill Rate %': f'<strong>{format_pct(t_fill_pct)}</strong>',
+    }])], ignore_index=True)
+    details_df = pd.concat([details_df, pd.DataFrame([{
+        'Classification': '<strong>TOTAL</strong>',
+        'Vacancy Filled': f'<strong>{format_int(t_vac_filled)}</strong>',
+        'Vacancy Unfilled': f'<strong>{format_int(t_vac_unfilled)}</strong>',
+        'Total Vacancy': f'<strong>{format_int(t_vac)}</strong>',
+        'Vacancy Fill %': f'<strong>{format_pct(t_vac_pct)}</strong>',
+        'Absence Filled': f'<strong>{format_int(t_abs_filled)}</strong>',
+        'Absence Unfilled': f'<strong>{format_int(t_abs_unfilled)}</strong>',
+        'Total Absence': f'<strong>{format_int(t_abs)}</strong>',
+        'Absence Fill %': f'<strong>{format_pct(t_abs_pct)}</strong>',
+    }])], ignore_index=True)
+    
     # Debug the DataFrame structure before converting to HTML
     if debug_district:
         print(f"Combined DataFrame shape: {combined_df.shape}, columns: {list(combined_df.columns)}")
@@ -1456,6 +1488,10 @@ def create_school_tabbed_tables(data, formatters):
     combined_df['Total Unfilled'] = df_copy['Total_Unfilled'].apply(format_int)
     combined_df['Total Jobs'] = df_copy['Total Jobs'].apply(format_int)
     combined_df['Fill Rate %'] = df_copy['Fill Rate %'].apply(format_pct)
+    if 'Avg Jobs Per Day' in df_copy.columns:
+        combined_df['Avg Jobs Per Day'] = df_copy['Avg Jobs Per Day'].apply(
+            lambda x: f"{float(x):.1f}" if pd.notna(x) else '0.0'
+        )
     
     # Build Details DataFrame - exactly like your working example
     details_df = pd.DataFrame()
@@ -1679,23 +1715,7 @@ def create_simple_nomination_table(df, formatters, table_id='nomination-table'):
             else:
                 formatted_value = str(value)
             
-            # Add special styling for percentage values
-            cell_class = ''
-            if 'Percentage' in str(row.get('Metric', '')) and col == 'Value':
-                try:
-                    pct_value = float(str(formatted_value).replace('%', ''))
-                    if pct_value >= 90:
-                        cell_class = 'class="text-success fw-bold"'
-                    elif pct_value >= 75:
-                        cell_class = 'class="text-info fw-bold"'
-                    elif pct_value >= 50:
-                        cell_class = 'class="text-warning fw-bold"'
-                    else:
-                        cell_class = 'class="text-danger fw-bold"'
-                except:
-                    pass
-            
-            table_html += f'<td {cell_class}>{formatted_value}</td>'
+            table_html += f'<td>{formatted_value}</td>'
         table_html += '</tr>'
     
     table_html += '</tbody></table>'

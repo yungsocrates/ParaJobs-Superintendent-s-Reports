@@ -311,7 +311,9 @@ def load_and_process_data(csv_file_paths, date_filter=None):
             filter_date = pd.to_datetime(date_filter)
             applied_filter_date = filter_date
             initial_count = len(df_to_process)
-            df_to_process = df_to_process[df_to_process['Job Start'] <= filter_date].copy()
+            # Normalize Job Start to midnight for date-only comparison so that records
+            # with timestamps on the filter date (e.g. 2026-03-31 08:20) are included
+            df_to_process = df_to_process[df_to_process['Job Start'].dt.normalize() <= filter_date].copy()
             filtered_count = len(df_to_process)
             print(f"✓ Date filter applied: {initial_count:,} → {filtered_count:,} records (excluded {initial_count - filtered_count:,} records after {date_filter})")
         except Exception as e:
@@ -334,9 +336,10 @@ def load_and_process_data(csv_file_paths, date_filter=None):
             initial_count = len(df_to_process)
             
             # Filter to only include valid date range
+            # Normalize end date comparison so records on the filter date at any time are included
             df_to_process = df_to_process[
                 (df_to_process['Job Start'] >= auto_start_date) & 
-                (df_to_process['Job Start'] <= auto_end_date)
+                (df_to_process['Job Start'].dt.normalize() <= auto_end_date)
             ].copy()
             filtered_count = len(df_to_process)
             
