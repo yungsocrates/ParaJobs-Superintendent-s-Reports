@@ -184,8 +184,11 @@ def calculate_school_nomination_metrics(nominations_df, cancellations_df):
     """
     school_metrics = {}
     
-    # Get unique school locations from nominations (using normalized codes)
-    schools = nominations_df['Location_Normalized'].unique()
+    # Get unique school locations from BOTH nominations and cancellations
+    # so that schools with only cancellations (no nominations) are still counted
+    nomination_schools = set(nominations_df['Location_Normalized'].dropna().unique())
+    cancellation_schools = set(cancellations_df['Location_Normalized'].dropna().unique())
+    schools = nomination_schools | cancellation_schools
     
     for school in schools:
         if pd.isna(school) or school == '':
