@@ -1726,6 +1726,7 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
                 total_subcentral = borough_analysis[subcentral_col].sum()
                 total_payroll = borough_analysis['Payroll Job Days' if 'Payroll Job Days' in matching_stats.columns else 'Payroll_Count'].sum()
                 total_matched = borough_analysis[matched_col].sum()
+                aggregate_match_rate = round(total_matched / total_payroll * 100, 1) if total_payroll > 0 else 0.0
                 
                 # Create formatters for borough analysis table (using display column names)
                 borough_formatters = {
@@ -1749,7 +1750,7 @@ def create_overall_summary(df, citywide_stats, borough_stats, output_dir, date_r
                             <li><strong>Total SubCentral Records:</strong> {total_subcentral:,}</li>
                             <li><strong>Total Payroll Records:</strong> {total_payroll:,}</li>
                             <li><strong>Total Matched Records:</strong> {total_matched:,}</li>
-                            <li><strong>Average Match Rate:</strong> {citywide_avg_match:.1f}%</li>
+                            <li><strong>Overall Match Rate:</strong> {aggregate_match_rate:.1f}%</li>
                         </ul>
                     </div>
                     

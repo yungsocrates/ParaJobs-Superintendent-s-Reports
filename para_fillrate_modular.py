@@ -12,7 +12,8 @@ import time
 # Import our custom modules
 from data_processing import (
     load_and_process_data, get_data_date_range, create_summary_stats, 
-    copy_logo_to_output, create_matching_analysis, load_superintendent_mapping, add_superintendent_info
+    copy_logo_to_output, create_matching_analysis, load_superintendent_mapping, add_superintendent_info,
+    export_location_summary_csv
 )
 from report_generators import create_borough_report, create_overall_summary, create_superintendent_report
 from nomination_processing import load_nomination_data
@@ -20,6 +21,7 @@ from nomination_processing import load_nomination_data
 # ===== GLOBAL CONFIGURATION =====
 # DATE FILTER: Only include data up to this date (format: 'YYYY-MM-DD')
 DATE_FILTER = '2026-03-31'
+
 
 def main():
     """
@@ -111,7 +113,11 @@ def main():
         # Get date range information
         date_range_info = get_data_date_range(df)
         print(f"✓ Report period: {date_range_info}")
-        
+
+        # Export flat per-location summary CSV for easy search and debugging
+        print("Exporting location summary CSV...")
+        export_location_summary_csv(df, matching_stats, output_directory)
+
         # OPTIMIZATION: Calculate ALL statistics levels once (like matching analysis)
         print("Creating comprehensive statistics...")
         

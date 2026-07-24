@@ -38,7 +38,8 @@ def load_superintendent_mapping():
         'Superintendent_Email': df['N_Superintendent - Email'].str.strip().str.lower(),  # NORMALIZE: Strip and lowercase
         'Principal_Name': df['N_Principal Name'].str.strip().str.title(),  # NORMALIZE: Strip whitespace and title case
         'Principal_Email': df['N_Principal Email'].str.strip().str.lower(),  # NORMALIZE: Strip and lowercase
-        'School_Name': df['School Name'].str.strip()  # NORMALIZE: Strip whitespace
+        'School_Name': df['School Name'].str.strip(),  # NORMALIZE: Strip whitespace
+        'Grade_Span': df['Grade Span'].fillna('').str.strip()  # e.g. 'High School', 'Secondary School', 'K-8'
     })
     
     # Replace district 75 with 97 as requested
@@ -85,7 +86,8 @@ def create_school_mapping_dict(mapping_df):
             'principal_name': row['Principal_Name'],
             'principal_email': row['Principal_Email'],
             'dbn': row['DBN'],
-            'school_name': row['School_Name']
+            'school_name': row['School_Name'],
+            'grade_span': row['Grade_Span']
         }
     
     return school_dict
@@ -749,6 +751,67 @@ def create_matching_analysis(main_df, srepp_df):
     print(f"  Overall match percentage: {overall_coverage:.1f}%")
     
     return matching_df
+
+def export_location_summary_csv(df, matching_stats, output_directory):
+    """
+    Export a flat CSV with one row per school location containing metadata
+    (BN, DBN, District, Borough, Superintendent) merged with SubCentral job
+    days, payroll job days, and SubCentral usage (% of payroll in SubC).
+
+    Args:
+        df: Main SubCentral dataframe (after add_superintendent_info has been called)
+        matching_stats: DataFrame returned by create_matching_analysis
+        output_directory: Directory to write the CSV into
+    """
+    import os
+
+    # Build per-location metadata from the main dataframe (one row per location)
+    meta_cols = [c for c in ['Location', 'DBN', 'District_From_Mapping', 'Borough', 'Superintendent_Name']
+                 if c in df.columns]
+    meta = (
+        df[meta_cols]
+        .drop_duplicates(subset=['Location'])
+        .rename(columns={
+            'Location':             'BN',
+            'DBN':                  'DBN',
+            'District_From_Mapping':'District',
+            'Borough':              'Borough',
+            'Superintendent_Name':  'Superintendent',
+        })
+    )
+
+    # Merge with matching stats (which is keyed on Location)
+    if not matching_stats.empty:
+        stats = matching_stats.rename(columns={'Location': 'BN'})[
+            ['BN', 'SubCentral Job Days', 'Payroll Job Days', 'Matched Jobs']
+        ]
+        merged = meta.merge(stats, on='BN', how='outer')
+    else:
+        merged = meta.copy()
+        merged['SubCentral Job Days'] = 0
+        merged['Payroll Job Days'] = 0
+        merged['Matched Jobs'] = 0
+
+    # Fill missing numerics with 0
+    for col in ['SubCentral Job Days', 'Payroll Job Days', 'Matched Jobs']:
+        merged[col] = merged[col].fillna(0).astype(int)
+
+    # Compute SubCentral usage: Matched Jobs as % of Payroll Job Days
+    merged['SubCentral Usage (%)'] = merged.apply(
+        lambda r: round(r['Matched Jobs'] / r['Payroll Job Days'] * 100, 1)
+        if r['Payroll Job Days'] > 0 else 0.0,
+        axis=1,
+    )
+
+    # Sort by District then BN for readability
+    sort_cols = [c for c in ['District', 'BN'] if c in merged.columns]
+    if sort_cols:
+        merged = merged.sort_values(sort_cols)
+
+    out_path = os.path.join(output_directory, 'location_summary.csv')
+    merged.to_csv(out_path, index=False)
+    print(f"✓ Location summary CSV -> {out_path}  ({len(merged)} rows)")
+
 
 def clean_classification_gender(classification):
     """

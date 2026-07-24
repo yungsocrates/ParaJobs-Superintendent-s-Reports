@@ -1,0 +1,109 @@
+% !TEX program = xelatex
+\documentclass[11pt, letterpaper]{article}
+
+\usepackage{fontspec}
+\setmainfont{Libre Caslon Text}
+
+\usepackage[top=1in, bottom=1in, left=1in, right=1in]{geometry}
+\usepackage{parskip}
+\setlength{\parindent}{0pt}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{nycblue}{HTML}{003087}
+
+\begin{document}
+
+\begin{center}
+  {\large\bfseries\color{nycblue} Superintendent's Portal Overall Match Rate Calculation Correction}\\[0.4em]
+\end{center}
+
+\bigskip
+
+\textbf{Background.} The dashboard compares SubCentral job records against
+SREPP payroll records on a per-location basis to produce a \emph{match rate}
+--- the share of payroll days that have a corresponding SubCentral entry.
+A discrepancy was identified between the headline ``Overall Match Rate'' and
+the per-borough rates shown in the summary table.
+
+\bigskip
+
+\textbf{Previous formula (unweighted mean).}
+The overall rate was previously computed as the arithmetic mean of each
+school's individual match percentage:
+
+\[
+  \bar{r}_{\text{unweighted}}
+  = \frac{1}{n} \sum_{i=1}^{n} \frac{m_i}{p_i} \times 100
+\]
+
+where $n$ is the number of school locations, $m_i$ is the number of matched
+job days at location $i$, and $p_i$ is the number of payroll job days at
+location $i$. Under this formula every school receives equal weight regardless
+of size. Schools with few or no payroll records (including locations present
+in SubCentral but absent from the payroll file, which contribute $0\%$) pull
+the average downward disproportionately, yielding a headline figure several
+percentage points below the borough-level rates.
+
+\bigskip
+
+\textbf{Current formula (weighted aggregate).}
+The overall rate is now computed as a single ratio of citywide totals,
+consistent with how per-borough rates are calculated:
+
+\[
+  r_{\text{aggregate}}
+  = \frac{\displaystyle\sum_{i=1}^{n} m_i}{\displaystyle\sum_{i=1}^{n} p_i}
+    \times 100
+\]
+
+Each payroll day contributes equally to the denominator, so larger schools
+with more activity are weighted in proportion to their size. This is the same
+methodology used for the per-borough rows in the summary table, making the
+headline figure directly comparable to and consistent with those values.
+
+\bigskip
+
+\textbf{Illustrative example.}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{School} & \textbf{Payroll Days} & \textbf{Matched Days} & \textbf{Per-School Rate} \\
+\midrule
+School A & 5{,}000 & 4{,}600 & 92.0\% \\
+School B &    20   &     0   &  0.0\% \\
+School C & 3{,}000 & 2{,}700 & 90.0\% \\
+\midrule
+\textbf{Unweighted mean}  & ---      & ---      & 60.7\% \\
+\textbf{Weighted aggregate} & 8{,}020 & 7{,}300 & 91.0\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+School B has minimal activity but drags the unweighted mean to 60.7\%,
+far below the 91.0\% weighted aggregate that accurately reflects system-wide
+coverage.
+
+\bigskip
+
+\textbf{Summary.} The per-borough rates displayed in the summary table have
+always used the weighted aggregate formula and remain unchanged. Only the
+headline ``Overall Match Rate'' figure has been corrected to use the same
+methodology, resolving the apparent inconsistency between the headline and
+the borough rows.
+
+\bigskip
+
+\textbf{Bottom line.} The previous calculation was averaging the match
+percentage of each individual school --- including schools reporting $0\%$
+--- giving every school equal weight regardless of how many payroll days it
+contributed. The correct approach is to first add up all matched job days
+across every school, then divide by the total payroll days citywide. This
+produces a single percentage that reflects actual system-wide coverage rather
+than a mean of school-level percentages distorted by low-activity locations.
+
+\end{document}
